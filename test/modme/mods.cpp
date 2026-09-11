@@ -86,6 +86,9 @@ TEST_CASE("the first mod in case-insensitive alphabetical order wins")
 
   REQUIRE(mods.files.count(L"shared.txt") == 1);
   CHECK(mods.files.at(L"shared.txt").mod == L"a_lower");
+  REQUIRE(mods.roots.size() == 2);
+  CHECK(mods.roots[0].filename() == "a_lower");
+  CHECK(mods.roots[1].filename() == "B_upper");
 }
 
 TEST_CASE("mod files are matched case-insensitively and keep their name")
@@ -99,6 +102,20 @@ TEST_CASE("mod files are matched case-insensitively and keep their name")
   CHECK(mods.files.at(L"sub\\file.txt").name == L"Sub\\File.TXT");
   CHECK(mods.files.at(L"sub\\file.txt").path ==
         (root / "a_mod" / "Sub" / "File.TXT").native());
+  CHECK_FALSE(mods.files.at(L"sub\\file.txt").folder);
+}
+
+TEST_CASE("mod folders are kept as folders")
+{
+  const fs::path root = scan_folder("folders");
+  write_file(root / "a_mod" / "Sub" / "Deep" / "file.txt", "");
+
+  const scanned_mods mods = scan_mods(root);
+
+  REQUIRE(mods.files.count(L"sub") == 1);
+  REQUIRE(mods.files.count(L"sub\\deep") == 1);
+  CHECK(mods.files.at(L"sub").folder);
+  CHECK(mods.files.at(L"sub\\deep").name == L"Sub\\Deep");
 }
 
 TEST_CASE("plugins are collected in mod order and are not files")
@@ -109,7 +126,8 @@ TEST_CASE("plugins are collected in mod order and are not files")
 
   const scanned_mods mods = scan_mods(root);
 
-  CHECK(mods.files.empty());
+  CHECK(mods.files.count(L"x.asi") == 0);
+  CHECK(mods.files.count(L"sub\\y.asi") == 0);
   REQUIRE(mods.plugins.size() == 2);
   CHECK(mods.plugins[0].filename() == "x.asi");
   CHECK(mods.plugins[1].filename() == "y.ASI");
@@ -120,5 +138,6 @@ TEST_CASE("scan of a missing mods folder finds nothing")
   const scanned_mods mods = scan_mods(exe_dir() / "scan" / "missing");
 
   CHECK(mods.files.empty());
+  CHECK(mods.roots.empty());
   CHECK(mods.plugins.empty());
 }

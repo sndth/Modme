@@ -15,4 +15,6 @@ size_t
 create_api_hooks(std::span<const api_hook> hooks);
 
 void
-install_file_hooks(const std::filesystem::path& root, file_overrides files);
+install_file_hooks(const std::filesystem::path& root,
+                   file_overrides files,
+                   std::vector<std::filesystem::path> mods);

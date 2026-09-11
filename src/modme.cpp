@@ -28,7 +28,7 @@ initialize()
   log_line(L"Modme v" MODME_VERSION);
   log_line(L"Dir: {}", root.lexically_proximate(game).native());
   scanned_mods mods = scan_mods(root);
-  install_file_hooks(game, std::move(mods.files));
+  install_file_hooks(game, std::move(mods.files), std::move(mods.roots));
   load_plugins(root, mods.plugins);
 }
 
