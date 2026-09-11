@@ -1,10 +1,16 @@
 ![Modme](data/modme.png)
 
 <p align="center">
-  <b>Install and remove Bully: Scholarship Edition mods without touching game files</b>
+  <b>Add and remove mods for your favorite games, the fast and simple way</b>
 </p>
 
 Modme is an [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader) plugin. Every mod lives in its own folder, and the game sees the mod's files in place of the originals. Delete the folder and the mod is gone.
+
+## Supported games
+- Bully: Scholarship Edition
+- Worms Ultimate Mayhem
+
+Other 32-bit games that run [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader) should work too.
 
 ## Installation
 1. Install [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader/releases).
