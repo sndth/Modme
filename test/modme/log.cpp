@@ -59,6 +59,22 @@ TEST_CASE("log mentions each replaced file once")
   CHECK(occurrences(log, "Replaced TXD\\new.nft from TestMod") == 1);
 }
 
+TEST_CASE("log says when the mods folder is missing")
+{
+  const fs::path folder = exe_dir() / "no_mods";
+  fs::remove_all(folder);
+  fs::create_directories(folder);
+  fs::copy_file(exe_dir() / "Modme.asi", folder / "Empty.asi");
+
+  REQUIRE(load_asi(folder / "Empty.asi") != nullptr);
+
+  const std::string log = read_text(folder / "Empty.log");
+  CHECK(log.find("] Mods folder not found: no_mods\\Empty\n") !=
+        std::string::npos);
+  CHECK(log.find("Error:") == std::string::npos);
+  CHECK(log.find("Hooks: skipped, no mod files") != std::string::npos);
+}
+
 TEST_CASE("Modme.asi carries its version")
 {
   const std::wstring asi = (game().update / "Modme.asi").native();
