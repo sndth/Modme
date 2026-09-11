@@ -26,8 +26,17 @@ initialize()
 
   open_log(fs::path(asi).replace_extension(L".log"));
   log_line(L"Modme v" MODME_VERSION);
-  log_line(L"Dir: {}", root.lexically_proximate(game).native());
-  scanned_mods mods = scan_mods(root);
+  const fs::path dir = root.lexically_proximate(game);
+  scanned_mods mods;
+
+  log_line(L"Dir: {}", dir.native());
+
+  if (fs::is_directory(root)) {
+    mods = scan_mods(root);
+  } else {
+    log_line(L"Mods folder not found: {}", dir.native());
+  }
+
   install_file_hooks(game, std::move(mods.files), std::move(mods.roots));
   load_plugins(root, mods.plugins);
 }
