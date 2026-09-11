@@ -33,7 +33,6 @@ Modme\SilentPatch\SilentPatchBully.asi -> loaded as an ASI plugin
 
 ## Limitations
 - `.img` archives can only be replaced as a whole.
-- Files that exist only in mods don't show up in folder listings like `TXD\*.nft`.
 
 ## Building
 Visual Studio 2026 with the C++ workload:

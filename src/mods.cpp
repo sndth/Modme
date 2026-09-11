@@ -52,19 +52,24 @@ scan_mod(const fs::path& mod, scanned_mods& mods)
        !error && it != end;
        it.increment(error)) {
     std::error_code ignored;
+    const fs::path& file = it->path();
+    const std::wstring name = file.lexically_relative(mod).native();
+
+    if (it->is_directory(ignored)) {
+      mods.files.try_emplace(lower(name),
+                             mod_file{ file.native(), mod_name, name, true });
+      continue;
+    }
 
     if (!it->is_regular_file(ignored)) {
       continue;
     }
-
-    const fs::path& file = it->path();
 
     if (lower(file.extension().native()) == L".asi") {
       mods.plugins.push_back(file);
       continue;
     }
 
-    std::wstring name = file.lexically_relative(mod).native();
     auto [existing, added] = mods.files.try_emplace(
       lower(name), mod_file{ file.native(), mod_name, name });
 
@@ -91,9 +96,9 @@ scan_mod(const fs::path& mod, scanned_mods& mods)
 scanned_mods
 scan_mods(const fs::path& root)
 {
-  scanned_mods mods;
+  scanned_mods mods{ .roots = list_mods(root) };
 
-  for (const fs::path& mod : list_mods(root)) {
+  for (const fs::path& mod : mods.roots) {
     scan_mod(mod, mods);
   }
 

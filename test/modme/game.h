@@ -110,31 +110,41 @@ game()
 
     fs::remove_all(g.update);
     fs::create_directories(g.root / "TXD");
+    fs::create_directories(g.root / "_loader" / "scripts");
     fs::create_directories(g.mod / "TXD");
     fs::create_directories(g.mod / "scripts");
+    fs::create_directories(g.mod / "packages");
     fs::create_directories(g.mod / "needs_dependency");
     fs::create_directories(g.mod / "modme_missing_outside");
+    fs::create_directories(g.mod / "_loader" / "scripts" / "Menu");
     fs::create_directories(g.mod / g.windows.relative_path() / "System32");
     fs::create_directories(g.polish_mod / "TXD");
+    fs::create_directories(g.polish_mod / "_loader" / "scripts" / "Other");
 
     std::ofstream(g.root / "TXD" / "hud.nft") << "original";
     std::ofstream(g.root / "TXD" / "other.nft") << "untouched";
     std::ofstream(g.root / "TXD" / "config.dat") << "game";
+    std::ofstream(g.root / "_loader" / "scripts" / "game.lua") << "game";
     std::ofstream(g.mod / "TXD" / "hud.nft") << "modded";
     std::ofstream(g.mod / "TXD" / "config.dat") << "mod";
     std::ofstream(g.mod / "TXD" / "new.nft") << "new";
     std::ofstream(g.mod / "broken.asi") << "not a dll";
     std::ofstream(g.mod / "modme_missing_outside" / "missing.txt") << "outside";
+    std::ofstream(g.mod / "_loader" / "scripts" / "Menu" / "Main.lua") << "lua";
     std::ofstream(g.mod / g.windows.relative_path() / "System32" /
                   "kernel32.dll")
       << "mod";
     std::ofstream(g.polish_mod / "TXD" / "hud.nft") << "conflict";
     std::ofstream(g.polish_mod / "TXD" / L"gęś.nft") << "polish";
+    std::ofstream(g.polish_mod / "_loader" / "scripts" / "Other" / "other.lua")
+      << "other";
 
     fs::copy_file(g.root / "Modme.asi", g.update / "Modme.asi");
     fs::copy_file(g.root / "TestPlugin.asi", g.mod / "ual_first.asi");
     fs::copy_file(g.root / "TestPlugin.asi",
                   g.mod / "scripts" / "modme_first.asi");
+    fs::copy_file(g.root / "TestPlugin.asi",
+                  g.mod / "packages" / "package.dll");
     fs::copy_file(g.root / "TestDependent.asi",
                   g.mod / "needs_dependency" / "dependent.asi");
     fs::copy_file(g.root / "dependency" / "TestDependency.dll",
