@@ -170,6 +170,21 @@ TEST_CASE("new mod entries are added to the archive")
                  "characters") != std::string::npos);
 }
 
+TEST_CASE("empty mod entries remove archive entries")
+{
+  const fake_game& g = game();
+  REQUIRE(g.modme != nullptr);
+
+  CHECK(named("gone.txt").empty());
+  CHECK(named("nothing.txt").empty());
+
+  const std::string log = read_text(g.update / "Modme.log");
+  CHECK(log.find("Removed Stream\\World.img\\gone.txt by TestMod") !=
+        std::string::npos);
+  CHECK(log.find("Skipped Stream\\World.img\\nothing.txt from TestMod, empty "
+                 "and not in the archive") != std::string::npos);
+}
+
 TEST_CASE("overlapped reads mix game and mod data")
 {
   REQUIRE(game().modme != nullptr);

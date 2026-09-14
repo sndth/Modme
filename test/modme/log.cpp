@@ -24,7 +24,7 @@ TEST_CASE("log lists mods, conflicts, replaced files and plugins")
   CHECK(log.find("[00:00.") != std::string::npos);
   CHECK(log.find("] Modme v" MODME_VERSION "\n") != std::string::npos);
   CHECK(log.find("] Dir: Update\\Modme\n") != std::string::npos);
-  CHECK(log.find("Mod: TestMod - 13 file(s), 4 plugin(s)") !=
+  CHECK(log.find("Mod: TestMod - 15 file(s), 4 plugin(s)") !=
         std::string::npos);
   CHECK(log.find("Mod: Zażółć mod - 2 file(s), 0 plugin(s)") !=
         std::string::npos);

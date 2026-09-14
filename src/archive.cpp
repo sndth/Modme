@@ -7,6 +7,7 @@
 #include <optional>
 #include <ranges>
 #include <unordered_map>
+#include <utility>
 
 namespace fs = std::filesystem;
 
@@ -107,6 +108,22 @@ build_archive(std::string dir, const file_overrides& entries)
   }
 
   const uint64_t base = archive.size;
+
+  std::erase_if(table, [&](const dir_entry& entry) {
+    auto it = files.find(entry_key(entry));
+
+    if (it == files.end() || it->second.sectors > 0) {
+      return false;
+    }
+
+    if (!std::exchange(it->second.found, true)) {
+      log_line(
+        L"Removed {} by {}", it->second.file->name, it->second.file->mod);
+    }
+
+    return true;
+  });
+
   const auto place = [&](const entry_file& entry) -> std::optional<uint32_t> {
     if (auto it = moved.find(entry.file); it != moved.end()) {
       return it->second;
@@ -155,6 +172,13 @@ build_archive(std::string dir, const file_overrides& entries)
 
   for (const entry_file& entry : files | std::views::values) {
     if (entry.found) {
+      continue;
+    }
+
+    if (entry.sectors == 0) {
+      log_line(L"Skipped {} from {}, empty and not in the archive",
+               entry.file->name,
+               entry.file->mod);
       continue;
     }
 

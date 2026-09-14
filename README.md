@@ -26,7 +26,7 @@ Modme\Skins\Stream\World.img\Bully.nft -> Bully.nft inside Stream\World.img
 Modme\SilentPatch\SilentPatchBully.asi -> loaded as an ASI plugin
 ```
 
-- A folder named like an `.img` archive holds single entries for it, so mods that change different files in the same archive work together. Entries that don't fit in place are added at the end of the archive, in memory only.
+- A folder named like an `.img` archive holds single entries for it, so mods that change different files in the same archive work together. Entries that don't fit in place are added at the end of the archive, in memory only. An empty file removes the entry with its name.
 - If two mods ship the same file, the first one alphabetically wins.
 - Files inside mods are never written to; the game writes to its own copies.
 - Files the game expects outside its folder (e.g. `C:\Textures\wall.dds`) can ship as `Modme\Some Mod\Textures\wall.dds` and are used only if the real file is missing.

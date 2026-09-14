@@ -183,11 +183,14 @@ game()
                     { "small.txt", 2, "old small" },
                     { "grow.txt", 1, "old grow" },
                     { "twice.txt", 1, "old twice" },
-                    { "twice.txt", 1, "old twice again" } });
+                    { "twice.txt", 1, "old twice again" },
+                    { "gone.txt", 0, "" } });
     std::ofstream(mod_archive / "Small.TXT") << "new small";
     std::ofstream(mod_archive / "grow.txt") << std::string(3000, 'g');
     std::ofstream(mod_archive / "twice.txt") << "new twice";
     std::ofstream(mod_archive / "added.txt") << "added";
+    std::ofstream(mod_archive / "gone.txt");
+    std::ofstream(mod_archive / "nothing.txt");
     std::ofstream(mod_archive / "this_name_is_longer_than_24.txt") << "long";
     std::ofstream(polish_archive / "small.txt") << "conflict";
 
