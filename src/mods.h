@@ -14,10 +14,12 @@ struct mod_file
 };
 
 using file_overrides = std::unordered_map<std::wstring, mod_file>;
+using archive_overrides = std::unordered_map<std::wstring, file_overrides>;
 
 struct scanned_mods
 {
   file_overrides files;
+  archive_overrides archives;
   std::vector<std::filesystem::path> roots;
   std::vector<std::filesystem::path> plugins;
 };

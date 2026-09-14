@@ -1,10 +1,43 @@
 #pragma once
 
 #include <Windows.h>
+#include <algorithm>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <string>
+#include <vector>
 
 namespace fs = std::filesystem;
+
+struct archive_entry
+{
+  const char* name;
+  uint32_t sectors;
+  std::string text;
+};
+
+inline void
+write_archive(const fs::path& path, const std::vector<archive_entry>& entries)
+{
+  std::ofstream dir(fs::path(path).replace_extension(".dir"), std::ios::binary);
+  std::ofstream img(fs::path(path).replace_extension(".img"), std::ios::binary);
+  uint32_t offset = 0;
+
+  for (const archive_entry& entry : entries) {
+    char name[24]{};
+    std::string data = entry.text;
+
+    std::copy_n(entry.name, strlen(entry.name), name);
+    data.resize(entry.sectors * 2048);
+    dir.write(reinterpret_cast<const char*>(&offset), sizeof(offset));
+    dir.write(reinterpret_cast<const char*>(&entry.sectors),
+              sizeof(entry.sectors));
+    dir.write(name, sizeof(name));
+    img.write(data.data(), data.size());
+    offset += entry.sectors;
+  }
+}
 
 inline fs::path
 exe_dir()
@@ -138,6 +171,28 @@ game()
     std::ofstream(g.polish_mod / "TXD" / L"gęś.nft") << "polish";
     std::ofstream(g.polish_mod / "_loader" / "scripts" / "Other" / "other.lua")
       << "other";
+
+    const fs::path mod_archive = g.mod / "Stream" / "World.img";
+    const fs::path polish_archive = g.polish_mod / "Stream" / "World.img";
+
+    fs::create_directories(g.root / "Stream");
+    fs::create_directories(mod_archive);
+    fs::create_directories(polish_archive);
+    write_archive(g.root / "Stream" / "World",
+                  { { "keep.txt", 1, "keep" },
+                    { "small.txt", 2, "old small" },
+                    { "grow.txt", 1, "old grow" },
+                    { "twice.txt", 1, "old twice" },
+                    { "twice.txt", 1, "old twice again" },
+                    { "gone.txt", 0, "" } });
+    std::ofstream(mod_archive / "Small.TXT") << "new small";
+    std::ofstream(mod_archive / "grow.txt") << std::string(3000, 'g');
+    std::ofstream(mod_archive / "twice.txt") << "new twice";
+    std::ofstream(mod_archive / "added.txt") << "added";
+    std::ofstream(mod_archive / "gone.txt");
+    std::ofstream(mod_archive / "nothing.txt");
+    std::ofstream(mod_archive / "this_name_is_longer_than_24.txt") << "long";
+    std::ofstream(polish_archive / "small.txt") << "conflict";
 
     fs::copy_file(g.root / "Modme.asi", g.update / "Modme.asi");
     fs::copy_file(g.root / "TestPlugin.asi", g.mod / "ual_first.asi");

@@ -81,7 +81,9 @@ workspace "Modme"
       "src/log.*",
       "src/mods.*",
       "src/hooks.*",
-      "test/modme/**"
+      "src/archive.*",
+      "test/modme/**",
+      "src/archive_hooks.*"
     }
 
     files(minhook)

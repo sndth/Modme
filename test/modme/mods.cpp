@@ -133,6 +133,24 @@ TEST_CASE("plugins are collected in mod order and are not files")
   CHECK(mods.plugins[1].filename() == "y.ASI");
 }
 
+TEST_CASE("folders named like archives hold entries, not files")
+{
+  const fs::path root = scan_folder("archives");
+  write_file(root / "a_mod" / "Stream" / "World.img" / "Bully.NFT", "");
+  write_file(root / "a_mod" / "Stream" / "World.img" / "sub" / "deep.nft", "");
+
+  const scanned_mods mods = scan_mods(root);
+
+  CHECK(mods.files.count(L"stream") == 1);
+  CHECK(mods.files.count(L"stream\\world.img") == 0);
+  CHECK(mods.files.count(L"stream\\world.img\\bully.nft") == 0);
+  REQUIRE(mods.archives.count(L"stream\\world.img") == 1);
+
+  const file_overrides& entries = mods.archives.at(L"stream\\world.img");
+  REQUIRE(entries.size() == 1);
+  CHECK(entries.at(L"bully.nft").name == L"Stream\\World.img\\Bully.NFT");
+}
+
 TEST_CASE("scan of a missing mods folder finds nothing")
 {
   const scanned_mods mods = scan_mods(exe_dir() / "scan" / "missing");
