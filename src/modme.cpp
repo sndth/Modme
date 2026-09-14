@@ -37,7 +37,10 @@ initialize()
     log_line(L"Mods folder not found: {}", dir.native());
   }
 
-  install_file_hooks(game, std::move(mods.files), std::move(mods.roots));
+  install_file_hooks(game,
+                     std::move(mods.files),
+                     std::move(mods.archives),
+                     std::move(mods.roots));
   load_plugins(root, mods.plugins);
 }
 

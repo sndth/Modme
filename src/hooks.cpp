@@ -1,4 +1,5 @@
 #include "hooks.h"
+#include "archive_hooks.h"
 #include "log.h"
 
 #include <MinHook.h>
@@ -155,6 +156,16 @@ to_find_data_a(const WIN32_FIND_DATAW& found, LPWIN32_FIND_DATAA data)
                       nullptr);
 }
 
+static bool
+hidden_from_mod(const WIN32_FIND_DATAW& data, const std::wstring& name)
+{
+  if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+    return name.ends_with(L".img");
+  }
+
+  return name.ends_with(L".asi");
+}
+
 static void
 list_into(const std::wstring& pattern,
           bool from_mod,
@@ -175,7 +186,7 @@ list_into(const std::wstring& pattern,
   do {
     std::wstring name = lower(data.cFileName);
 
-    if (!from_mod || !name.ends_with(L".asi")) {
+    if (!from_mod || !hidden_from_mod(data, name)) {
       entries.try_emplace(std::move(name), data);
     }
   } while (orig_find_next_file_w(handle, &data));
@@ -269,8 +280,17 @@ hook_create_file_w(LPCWSTR name,
                    DWORD flags,
                    HANDLE tmpl)
 {
-  return orig_create_file_w(
+  HANDLE handle = orig_create_file_w(
     redirect(name, access), access, share, sa, disposition, flags, tmpl);
+
+  if (handle != INVALID_HANDLE_VALUE && !(access & write_access)) {
+    const DWORD error = GetLastError();
+
+    track_archive(handle, name, flags);
+    SetLastError(error);
+  }
+
+  return handle;
 }
 
 static HANDLE WINAPI
@@ -470,12 +490,43 @@ create_api_hooks(std::span<const api_hook> hooks)
   return created;
 }
 
+std::wstring
+game_file(const wchar_t* path)
+{
+  const std::wstring lowered = lower(full_path(path));
+
+  return lowered.starts_with(game_root) ? lowered.substr(game_root.size())
+                                        : std::wstring();
+}
+
+HANDLE
+open_for_reading(const wchar_t* path)
+{
+  return orig_create_file_w(path,
+                            GENERIC_READ,
+                            FILE_SHARE_READ | FILE_SHARE_WRITE |
+                              FILE_SHARE_DELETE,
+                            nullptr,
+                            OPEN_EXISTING,
+                            FILE_ATTRIBUTE_NORMAL,
+                            nullptr);
+}
+
+HANDLE
+open_game_file(const std::wstring& file)
+{
+  const std::wstring path = game_root + file;
+
+  return open_for_reading(redirect(path.c_str(), 0));
+}
+
 void
 install_file_hooks(const std::filesystem::path& root,
                    file_overrides files,
+                   archive_overrides archives,
                    std::vector<std::filesystem::path> mods)
 {
-  if (files.empty()) {
+  if (files.empty() && archives.empty()) {
     log_line(L"Hooks: skipped, no mod files");
     return;
   }
@@ -483,6 +534,7 @@ install_file_hooks(const std::filesystem::path& root,
   game_root = lower(root.native()) + L'\\';
   overrides = std::move(files);
   mod_roots = std::move(mods);
+  set_archives(std::move(archives));
 
   const api_hook hooks[] = {
     { "CreateFileW",
@@ -533,7 +585,8 @@ install_file_hooks(const std::filesystem::path& root,
     return;
   }
 
-  const size_t created = create_api_hooks(hooks);
+  const size_t created =
+    create_api_hooks(hooks) + create_api_hooks(archive_hooks());
   status = MH_EnableHook(MH_ALL_HOOKS);
 
   if (status != MH_OK) {
@@ -541,5 +594,5 @@ install_file_hooks(const std::filesystem::path& root,
     return;
   }
 
-  log_line(L"Hooks: {}/{}", created, std::size(hooks));
+  log_line(L"Hooks: {}/{}", created, std::size(hooks) + archive_hooks().size());
 }

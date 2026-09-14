@@ -39,6 +39,54 @@ list_mods(const fs::path& root)
   return mods;
 }
 
+static bool
+add_file(file_overrides& files, std::wstring key, mod_file file)
+{
+  auto [existing, added] = files.try_emplace(std::move(key), file);
+
+  if (!added) {
+    log_line(L"Conflict: {} from {} ignored, using {}",
+             file.name,
+             file.mod,
+             existing->second.mod);
+  }
+
+  return added;
+}
+
+static size_t
+scan_archive(const fs::path& archive, const fs::path& mod, scanned_mods& mods)
+{
+  size_t count = 0;
+  std::error_code error;
+  const std::wstring mod_name = mod.filename().native();
+  const std::wstring key = lower(archive.lexically_relative(mod).native());
+
+  for (fs::directory_iterator it(archive, error), end; !error && it != end;
+       it.increment(error)) {
+    std::error_code ignored;
+    const fs::path& file = it->path();
+
+    if (!it->is_regular_file(ignored)) {
+      continue;
+    }
+
+    if (add_file(mods.archives[key],
+                 lower(file.filename().native()),
+                 mod_file{ file.native(),
+                           mod_name,
+                           file.lexically_relative(mod).native() })) {
+      ++count;
+    }
+  }
+
+  if (error) {
+    log_line(L"Error: {}: {}", mod_name, widen(error.message()));
+  }
+
+  return count;
+}
+
 static void
 scan_mod(const fs::path& mod, scanned_mods& mods)
 {
@@ -54,6 +102,13 @@ scan_mod(const fs::path& mod, scanned_mods& mods)
     std::error_code ignored;
     const fs::path& file = it->path();
     const std::wstring name = file.lexically_relative(mod).native();
+    const std::wstring extension = lower(file.extension().native());
+
+    if (it->is_directory(ignored) && extension == L".img") {
+      it.disable_recursion_pending();
+      count += scan_archive(file, mod, mods);
+      continue;
+    }
 
     if (it->is_directory(ignored)) {
       mods.files.try_emplace(lower(name),
@@ -65,21 +120,14 @@ scan_mod(const fs::path& mod, scanned_mods& mods)
       continue;
     }
 
-    if (lower(file.extension().native()) == L".asi") {
+    if (extension == L".asi") {
       mods.plugins.push_back(file);
       continue;
     }
 
-    auto [existing, added] = mods.files.try_emplace(
-      lower(name), mod_file{ file.native(), mod_name, name });
-
-    if (added) {
+    if (add_file(
+          mods.files, lower(name), mod_file{ file.native(), mod_name, name })) {
       ++count;
-    } else {
-      log_line(L"Conflict: {} from {} ignored, using {}",
-               name,
-               mod_name,
-               existing->second.mod);
     }
   }
 
