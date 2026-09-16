@@ -13,6 +13,7 @@
 
 struct archive_state
 {
+  std::shared_ptr<const scanned_mods> mods;
   virtual_archive layout;
   std::mutex mutex;
   std::unordered_map<const mod_file*, HANDLE> files;
@@ -29,7 +30,6 @@ struct tracked_file
 
 static const ULONG_PTR status_end_of_file = 0xC0000011;
 
-static archive_overrides archives;
 static std::mutex archives_mutex;
 static std::unordered_map<std::wstring, std::unique_ptr<archive_state>> built;
 static std::unordered_set<std::wstring> failed;
@@ -94,10 +94,16 @@ static archive_state*
 find_archive(const std::wstring& img, HANDLE handle, bool dir, bool overlapped)
 {
   std::lock_guard lock(archives_mutex);
-  auto [it, added] = built.try_emplace(img);
+  std::shared_ptr<const scanned_mods> mods = current_mods();
 
-  if (!added) {
+  if (auto it = built.find(img); it != built.end()) {
     return it->second.get();
+  }
+
+  auto entries = mods->archives.find(img);
+
+  if (entries == mods->archives.end()) {
+    return nullptr;
   }
 
   std::optional<std::string> contents;
@@ -113,10 +119,8 @@ find_archive(const std::wstring& img, HANDLE handle, bool dir, bool overlapped)
 
   if (!contents) {
     const DWORD error = GetLastError();
-    const std::wstring& entry = archives.at(img).begin()->second.name;
+    const std::wstring& entry = entries->second.begin()->second.name;
     const std::wstring name = entry.substr(0, entry.rfind(L'\\'));
-
-    built.erase(it);
 
     if (failed.insert(img).second) {
       log_line(L"Skipped {}, its .dir can't be read (error {})", name, error);
@@ -125,10 +129,12 @@ find_archive(const std::wstring& img, HANDLE handle, bool dir, bool overlapped)
     return nullptr;
   }
 
-  it->second = std::make_unique<archive_state>();
-  it->second->layout = build_archive(std::move(*contents), archives.at(img));
+  auto archive = std::make_unique<archive_state>();
 
-  return it->second.get();
+  archive->layout = build_archive(std::move(*contents), entries->second);
+  archive->mods = std::move(mods);
+
+  return built.emplace(img, std::move(archive)).first->second.get();
 }
 
 static tracked_file*
@@ -441,9 +447,18 @@ hook_close_handle(HANDLE handle)
 }
 
 void
-set_archives(archive_overrides overrides)
+log_archive_changes(const scanned_mods& mods)
 {
-  archives = std::move(overrides);
+  std::lock_guard lock(archives_mutex);
+
+  for (const auto& [img, archive] : built) {
+    auto after = mods.archives.find(img);
+
+    if (after == mods.archives.end() ||
+        after->second != archive->mods->archives.at(img)) {
+      log_line(L"Hot reload: {} entries change after a restart", img);
+    }
+  }
 }
 
 static std::unique_ptr<tracked_file>
@@ -451,7 +466,7 @@ open_tracked(HANDLE handle, const wchar_t* name, DWORD flags)
 {
   const std::wstring_view view = name ? name : L"";
 
-  if (archives.empty() || view.size() < 4) {
+  if (view.size() < 4) {
     return nullptr;
   }
 
@@ -470,10 +485,6 @@ open_tracked(HANDLE handle, const wchar_t* name, DWORD flags)
   }
 
   img.replace(img.size() - 4, 4, L".img");
-
-  if (!archives.contains(img)) {
-    return nullptr;
-  }
 
   const bool overlapped = (flags & FILE_FLAG_OVERLAPPED) != 0;
   archive_state* archive = find_archive(img, handle, dir, overlapped);

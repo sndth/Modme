@@ -3,7 +3,7 @@
 #include "hooks.h"
 
 void
-set_archives(archive_overrides archives);
+log_archive_changes(const scanned_mods& mods);
 
 void
 track_archive(HANDLE handle, const wchar_t* name, DWORD flags);

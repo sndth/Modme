@@ -3,6 +3,7 @@
 #include "mods.h"
 
 #include <Windows.h>
+#include <memory>
 #include <span>
 
 struct api_hook
@@ -24,8 +25,11 @@ open_for_reading(const wchar_t* path);
 HANDLE
 open_game_file(const std::wstring& file);
 
+std::shared_ptr<const scanned_mods>
+current_mods();
+
 void
-install_file_hooks(const std::filesystem::path& root,
-                   file_overrides files,
-                   archive_overrides archives,
-                   std::vector<std::filesystem::path> mods);
+set_mods(scanned_mods mods);
+
+void
+install_file_hooks(const std::filesystem::path& root, scanned_mods mods);

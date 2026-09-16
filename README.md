@@ -35,6 +35,7 @@ Modme\SilentPatch\SilentPatchBully.asi -> loaded as an ASI plugin
 `Modme.yaml` next to `Modme.asi` is optional. Mods missing from it are enabled with priority 50:
 
 ```yaml
+hot_reload: true
 modifications:
   HD HUD:
     enable: true
@@ -44,6 +45,8 @@ modifications:
 ```
 
 A disabled mod gives no files and loads no plugins.
+
+With `hot_reload` on (the default), changes in the mods folder and in `Modme.yaml` apply while the game runs: files the game opens from then on come from the new setup. What the game already loaded stays until it loads it again, and plugins and entries of archives the game already opened change after a restart.
 
 `Modme.log` next to `Modme.asi` lists loaded mods, conflicts, plugins and replaced files.
 

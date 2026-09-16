@@ -3,6 +3,7 @@
 #include "log.h"
 
 #include <MinHook.h>
+#include <atomic>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -23,8 +24,7 @@ static const DWORD write_access = GENERIC_WRITE | GENERIC_ALL |
                                   FILE_APPEND_DATA | DELETE;
 
 static std::wstring game_root;
-static file_overrides overrides;
-static std::vector<fs::path> mod_roots;
+static std::atomic<std::shared_ptr<const scanned_mods>> mods_state;
 static std::mutex logged_mutex;
 static std::unordered_set<std::wstring> logged;
 static std::mutex listings_mutex;
@@ -90,7 +90,7 @@ mod_key(const std::wstring& path)
 }
 
 static const wchar_t*
-redirect(const wchar_t* path, DWORD access)
+redirect(const scanned_mods& mods, const wchar_t* path, DWORD access)
 {
   const std::wstring full = full_path(path);
 
@@ -99,9 +99,9 @@ redirect(const wchar_t* path, DWORD access)
   }
 
   const std::wstring lowered = lower(full);
-  auto it = overrides.find(mod_key(lowered));
+  auto it = mods.files.find(mod_key(lowered));
 
-  if (it == overrides.end()) {
+  if (it == mods.files.end()) {
     return path;
   }
 
@@ -195,7 +195,9 @@ list_into(const std::wstring& pattern,
 }
 
 static std::optional<HANDLE>
-list_merged(const wchar_t* pattern, LPWIN32_FIND_DATAW data)
+list_merged(const scanned_mods& mods,
+            const wchar_t* pattern,
+            LPWIN32_FIND_DATAW data)
 {
   const std::wstring full = full_path(pattern);
   const std::wstring lowered = lower(full);
@@ -204,9 +206,9 @@ list_merged(const wchar_t* pattern, LPWIN32_FIND_DATAW data)
   const std::wstring folder =
     slash == std::wstring::npos ? std::wstring() : key.substr(0, slash);
   const bool inside = !full.empty() && lowered.starts_with(game_root);
-  const auto it = overrides.find(folder);
+  const auto it = mods.files.find(folder);
   const bool mod_folder =
-    folder.empty() ? inside : it != overrides.end() && it->second.folder;
+    folder.empty() ? inside : it != mods.files.end() && it->second.folder;
 
   if (!mod_folder ||
       key.find_first_of(L"*?", slash + 1) == std::wstring::npos) {
@@ -219,7 +221,7 @@ list_merged(const wchar_t* pattern, LPWIN32_FIND_DATAW data)
     list_into(full, false, entries);
   }
 
-  for (const fs::path& mod : mod_roots) {
+  for (const fs::path& mod : mods.roots) {
     list_into((mod / key).native(), true, entries);
   }
 
@@ -280,8 +282,13 @@ hook_create_file_w(LPCWSTR name,
                    DWORD flags,
                    HANDLE tmpl)
 {
-  HANDLE handle = orig_create_file_w(
-    redirect(name, access), access, share, sa, disposition, flags, tmpl);
+  HANDLE handle = orig_create_file_w(redirect(*current_mods(), name, access),
+                                     access,
+                                     share,
+                                     sa,
+                                     disposition,
+                                     flags,
+                                     tmpl);
 
   if (handle != INVALID_HANDLE_VALUE && !(access & write_access)) {
     const DWORD error = GetLastError();
@@ -315,7 +322,7 @@ hook_create_file_a(LPCSTR name,
 static DWORD WINAPI
 hook_get_file_attributes_w(LPCWSTR name)
 {
-  return orig_get_file_attributes_w(redirect(name, 0));
+  return orig_get_file_attributes_w(redirect(*current_mods(), name, 0));
 }
 
 static DWORD WINAPI
@@ -335,7 +342,8 @@ hook_get_file_attributes_ex_w(LPCWSTR name,
                               GET_FILEEX_INFO_LEVELS level,
                               LPVOID info)
 {
-  return orig_get_file_attributes_ex_w(redirect(name, 0), level, info);
+  return orig_get_file_attributes_ex_w(
+    redirect(*current_mods(), name, 0), level, info);
 }
 
 static BOOL WINAPI
@@ -360,14 +368,16 @@ hook_find_first_file_ex_w(LPCWSTR name,
                           LPVOID filter,
                           DWORD flags)
 {
-  const wchar_t* target = redirect(name, 0);
+  const std::shared_ptr<const scanned_mods> mods = current_mods();
+  const wchar_t* target = redirect(*mods, name, 0);
 
   if (target != name) {
     return orig_find_first_file_ex_w(
       target, level, data, search, filter, flags);
   }
 
-  if (auto merged = list_merged(name, static_cast<LPWIN32_FIND_DATAW>(data))) {
+  if (auto merged =
+        list_merged(*mods, name, static_cast<LPWIN32_FIND_DATAW>(data))) {
     return *merged;
   }
 
@@ -447,7 +457,7 @@ hook_load_library_ex_w(LPCWSTR name, HANDLE file, DWORD flags)
     name && std::wstring_view(name).find_first_of(L"\\/") != std::wstring::npos;
 
   return orig_load_library_ex_w(
-    has_folder ? redirect(name, 0) : name, file, flags);
+    has_folder ? redirect(*current_mods(), name, 0) : name, file, flags);
 }
 
 size_t
@@ -517,24 +527,26 @@ open_game_file(const std::wstring& file)
 {
   const std::wstring path = game_root + file;
 
-  return open_for_reading(redirect(path.c_str(), 0));
+  return open_for_reading(redirect(*current_mods(), path.c_str(), 0));
+}
+
+std::shared_ptr<const scanned_mods>
+current_mods()
+{
+  return mods_state.load();
 }
 
 void
-install_file_hooks(const std::filesystem::path& root,
-                   file_overrides files,
-                   archive_overrides archives,
-                   std::vector<std::filesystem::path> mods)
+set_mods(scanned_mods mods)
 {
-  if (files.empty() && archives.empty()) {
-    log_line(L"Hooks: skipped, no mod files");
-    return;
-  }
+  mods_state.store(std::make_shared<const scanned_mods>(std::move(mods)));
+}
 
+void
+install_file_hooks(const std::filesystem::path& root, scanned_mods mods)
+{
   game_root = lower(root.native()) + L'\\';
-  overrides = std::move(files);
-  mod_roots = std::move(mods);
-  set_archives(std::move(archives));
+  set_mods(std::move(mods));
 
   const api_hook hooks[] = {
     { "CreateFileW",
