@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include <filesystem>
 #include <string>
 #include <unordered_map>
@@ -28,4 +30,4 @@ std::wstring
 lower(std::wstring s);
 
 scanned_mods
-scan_mods(const std::filesystem::path& root);
+scan_mods(const std::filesystem::path& root, const mod_config& config = {});

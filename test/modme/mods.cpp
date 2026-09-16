@@ -91,6 +91,44 @@ TEST_CASE("the first mod in case-insensitive alphabetical order wins")
   CHECK(mods.roots[1].filename() == "B_upper");
 }
 
+TEST_CASE("the mod with the higher priority wins, equal ones go by name")
+{
+  const fs::path root = scan_folder("priority");
+  write_file(root / "a_low" / "shared.txt", "a");
+  write_file(root / "b_default" / "shared.txt", "b");
+  write_file(root / "c_high" / "shared.txt", "c");
+
+  mod_config config;
+  config[L"a_low"].priority = 10;
+  config[L"c_high"].priority = 90;
+
+  const scanned_mods mods = scan_mods(root, config);
+
+  CHECK(mods.files.at(L"shared.txt").mod == L"c_high");
+  REQUIRE(mods.roots.size() == 3);
+  CHECK(mods.roots[0].filename() == "c_high");
+  CHECK(mods.roots[1].filename() == "b_default");
+  CHECK(mods.roots[2].filename() == "a_low");
+}
+
+TEST_CASE("disabled mods give no files and no plugins")
+{
+  const fs::path root = scan_folder("disabled");
+  write_file(root / "a_off" / "shared.txt", "a");
+  write_file(root / "a_off" / "plugin.asi", "");
+  write_file(root / "b_on" / "shared.txt", "b");
+
+  mod_config config;
+  config[L"a_off"].enable = false;
+
+  const scanned_mods mods = scan_mods(root, config);
+
+  CHECK(mods.files.at(L"shared.txt").mod == L"b_on");
+  CHECK(mods.plugins.empty());
+  REQUIRE(mods.roots.size() == 1);
+  CHECK(mods.roots[0].filename() == "b_on");
+}
+
 TEST_CASE("mod files are matched case-insensitively and keep their name")
 {
   const fs::path root = scan_folder("names");

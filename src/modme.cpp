@@ -32,7 +32,8 @@ initialize()
   log_line(L"Dir: {}", dir.native());
 
   if (fs::is_directory(root)) {
-    mods = scan_mods(root);
+    mods =
+      scan_mods(root, read_config(fs::path(asi).replace_extension(L".yaml")));
   } else {
     log_line(L"Mods folder not found: {}", dir.native());
   }

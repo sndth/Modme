@@ -1,6 +1,9 @@
 [submodule "vendor/doctest"]
 	path = vendor/doctest
 	url = https://github.com/doctest/doctest.git
+[submodule "vendor/fkYAML"]
+	path = vendor/fkYAML
+	url = https://github.com/fktn-k/fkYAML.git
 [submodule "vendor/minhook"]
 	path = vendor/minhook
 	url = https://github.com/TsudaKageyu/minhook.git

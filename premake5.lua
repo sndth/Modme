@@ -15,6 +15,10 @@ workspace "Modme"
   startproject "TestModme"
   staticruntime "On"
 
+  defines {
+    "NOMINMAX"
+  }
+
   buildoptions {
     "/utf-8"
   }
@@ -47,7 +51,8 @@ workspace "Modme"
     files(minhook)
 
     includedirs {
-      "vendor/minhook/include"
+      "vendor/minhook/include",
+      "vendor/fkYAML/single_include"
     }
 
   project "TestDependency"
@@ -81,6 +86,7 @@ workspace "Modme"
       "src/log.*",
       "src/mods.*",
       "src/hooks.*",
+      "src/config.*",
       "src/archive.*",
       "test/modme/**",
       "src/archive_hooks.*"
@@ -97,7 +103,8 @@ workspace "Modme"
     includedirs {
       "src",
       "vendor/doctest/doctest",
-      "vendor/minhook/include"
+      "vendor/minhook/include",
+      "vendor/fkYAML/single_include"
     }
 
   project "TestPlugin"
