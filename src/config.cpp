@@ -17,6 +17,65 @@ from_utf8(const std::string& text)
   return wide;
 }
 
+static std::string
+to_utf8(const std::wstring& text)
+{
+  std::string narrow(text.size() * 3, '\0');
+
+  narrow.resize(WideCharToMultiByte(CP_UTF8,
+                                    0,
+                                    text.data(),
+                                    int(text.size()),
+                                    narrow.data(),
+                                    int(narrow.size()),
+                                    nullptr,
+                                    nullptr));
+
+  return narrow;
+}
+
+static bool
+add_missing(fkyaml::node& node, const char* key, fkyaml::node value)
+{
+  if (node.contains(key)) {
+    return false;
+  }
+
+  node[key] = std::move(value);
+
+  return true;
+}
+
+static bool
+complete_mods(fkyaml::node& modifications,
+              const std::vector<std::wstring>& mods)
+{
+  bool changed = false;
+
+  for (const std::wstring& mod : mods) {
+    fkyaml::node* entry = nullptr;
+
+    for (auto& [key, value] : modifications.as_map()) {
+      if (key.is_string() && lower(from_utf8(key.as_str())) == lower(mod)) {
+        entry = &value;
+      }
+    }
+
+    if (!entry) {
+      entry = &modifications[to_utf8(mod)];
+      *entry = fkyaml::node::mapping();
+      changed = true;
+    }
+
+    if (entry->is_mapping()) {
+      changed |= add_missing(*entry, "enable", true);
+      changed |= add_missing(*entry, "priority", 50);
+    }
+  }
+
+  return changed;
+}
+
 static mod_settings
 read_settings(const std::wstring& name, const fkyaml::node& node)
 {
@@ -84,4 +143,47 @@ read_config(const std::filesystem::path& file)
   }
 
   return config;
+}
+
+void
+complete_config(const std::filesystem::path& file,
+                const std::vector<std::wstring>& mods)
+{
+  fkyaml::node root = fkyaml::node::mapping();
+  std::ifstream in(file, std::ios::binary);
+  const bool found = bool(in);
+
+  try {
+    if (found) {
+      root = fkyaml::node::deserialize(in);
+      in.close();
+    }
+
+    if (root.is_null()) {
+      root = fkyaml::node::mapping();
+    }
+
+    if (!root.is_mapping()) {
+      return;
+    }
+
+    bool changed = !found;
+
+    changed |= add_missing(root, "hot_reload", true);
+
+    if (!root.contains("modifications") || root["modifications"].is_null()) {
+      root["modifications"] = fkyaml::node::mapping();
+      changed = true;
+    }
+
+    if (root["modifications"].is_mapping()) {
+      changed |= complete_mods(root["modifications"], mods);
+    }
+
+    if (changed) {
+      std::ofstream(file, std::ios::binary) << fkyaml::node::serialize(root);
+      log_line(L"Config: updated {}", file.filename().native());
+    }
+  } catch (const std::exception&) {
+  }
 }

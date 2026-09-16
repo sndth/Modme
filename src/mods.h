@@ -31,5 +31,8 @@ struct scanned_mods
 std::wstring
 lower(std::wstring s);
 
+std::vector<std::wstring>
+mod_folders(const std::filesystem::path& root);
+
 scanned_mods
 scan_mods(const std::filesystem::path& root, const mod_config& config = {});
