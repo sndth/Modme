@@ -172,6 +172,12 @@ game()
     std::ofstream(g.polish_mod / "_loader" / "scripts" / "Other" / "other.lua")
       << "other";
 
+    fs::create_directories(g.update / "Modme" / "Off mod" / "TXD");
+    std::ofstream(g.update / "Modme" / "Off mod" / "TXD" / "off.nft") << "off";
+    std::ofstream(g.update / "Modme.yaml") << "modifications:\n"
+                                              "  off mod:\n"
+                                              "    enable: false\n";
+
     const fs::path mod_archive = g.mod / "Stream" / "World.img";
     const fs::path polish_archive = g.polish_mod / "Stream" / "World.img";
 

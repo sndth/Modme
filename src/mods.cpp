@@ -13,8 +13,16 @@ lower(std::wstring s)
   return s;
 }
 
+static mod_settings
+settings_of(const fs::path& mod, const mod_config& config)
+{
+  auto it = config.find(lower(mod.filename().native()));
+
+  return it == config.end() ? mod_settings{} : it->second;
+}
+
 static std::vector<fs::path>
-list_mods(const fs::path& root)
+list_mods(const fs::path& root, const mod_config& config)
 {
   std::vector<fs::path> mods;
   std::error_code error;
@@ -23,8 +31,14 @@ list_mods(const fs::path& root)
        it.increment(error)) {
     std::error_code ignored;
 
-    if (it->is_directory(ignored)) {
+    if (!it->is_directory(ignored)) {
+      continue;
+    }
+
+    if (settings_of(it->path(), config).enable) {
       mods.push_back(it->path());
+    } else {
+      log_line(L"Mod: {} - disabled", it->path().filename().native());
     }
   }
 
@@ -32,8 +46,9 @@ list_mods(const fs::path& root)
     log_line(L"Error: {}: {}", root.native(), widen(error.message()));
   }
 
-  std::ranges::sort(mods, {}, [](const fs::path& mod) {
-    return lower(mod.filename().native());
+  std::ranges::sort(mods, {}, [&](const fs::path& mod) {
+    return std::pair(-settings_of(mod, config).priority,
+                     lower(mod.filename().native()));
   });
 
   return mods;
@@ -142,9 +157,9 @@ scan_mod(const fs::path& mod, scanned_mods& mods)
 }
 
 scanned_mods
-scan_mods(const fs::path& root)
+scan_mods(const fs::path& root, const mod_config& config)
 {
-  scanned_mods mods{ .roots = list_mods(root) };
+  scanned_mods mods{ .roots = list_mods(root, config) };
 
   for (const fs::path& mod : mods.roots) {
     scan_mod(mod, mods);

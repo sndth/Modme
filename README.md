@@ -27,9 +27,23 @@ Modme\SilentPatch\SilentPatchBully.asi -> loaded as an ASI plugin
 ```
 
 - A folder named like an `.img` archive holds single entries for it, so mods that change different files in the same archive work together. Entries that don't fit in place are added at the end of the archive, in memory only. An empty file removes the entry with its name.
-- If two mods ship the same file, the first one alphabetically wins.
+- If two mods ship the same file, the one with the higher priority wins; with equal priorities, the first one alphabetically wins.
 - Files inside mods are never written to; the game writes to its own copies.
 - Files the game expects outside its folder (e.g. `C:\Textures\wall.dds`) can ship as `Modme\Some Mod\Textures\wall.dds` and are used only if the real file is missing.
+
+## Configuration
+`Modme.yaml` next to `Modme.asi` is optional. Mods missing from it are enabled with priority 50:
+
+```yaml
+modifications:
+  HD HUD:
+    enable: true
+    priority: 60
+  Something:
+    enable: false
+```
+
+A disabled mod gives no files and loads no plugins.
 
 `Modme.log` next to `Modme.asi` lists loaded mods, conflicts, plugins and replaced files.
 
@@ -48,4 +62,4 @@ premake5.exe vs2026
 Open `build\Modme.slnx`, build and run `TestModme`. The tests load `Modme.asi` into a fake game folder and check file redirection, conflicts, plugin loading and the log.
 
 ## License
-Modme is released under the [MIT](LICENSE) license. It uses [MinHook](https://github.com/TsudaKageyu/minhook) (BSD 2-Clause), [doctest](https://github.com/doctest/doctest) (MIT) for tests and ships [Premake](https://github.com/premake/premake-core) ([BSD 3-Clause](LICENSE-Premake)) for building.
+Modme is released under the [MIT](LICENSE) license. It uses [MinHook](https://github.com/TsudaKageyu/minhook) (BSD 2-Clause), [fkYAML](https://github.com/fktn-k/fkYAML) (MIT), [doctest](https://github.com/doctest/doctest) (MIT) for tests and ships [Premake](https://github.com/premake/premake-core) ([BSD 3-Clause](LICENSE-Premake)) for building.
