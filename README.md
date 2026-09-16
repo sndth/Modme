@@ -32,7 +32,7 @@ Modme\SilentPatch\SilentPatchBully.asi -> loaded as an ASI plugin
 - Files the game expects outside its folder (e.g. `C:\Textures\wall.dds`) can ship as `Modme\Some Mod\Textures\wall.dds` and are used only if the real file is missing.
 
 ## Configuration
-`Modme.yaml` next to `Modme.asi` is optional. Mods missing from it are enabled with priority 50:
+`Modme.yaml` next to `Modme.asi` is created at startup, and new mod folders and missing settings are added to it with their defaults (on reload too). Your values are kept; comments are lost when something is added:
 
 ```yaml
 hot_reload: true

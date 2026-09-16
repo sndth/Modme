@@ -51,6 +51,69 @@ TEST_CASE("config keeps defaults for wrong values")
   CHECK(config.mods.at(L"b_mod").priority == 50);
 }
 
+TEST_CASE("a missing config is generated with every mod")
+{
+  const fs::path file = exe_dir() / "config" / "generated.yaml";
+  fs::remove(file);
+
+  complete_config(file, { L"B mod", L"Zażółć mod" });
+  const modme_config config = read_config(file);
+
+  CHECK(config.hot_reload);
+  REQUIRE(config.mods.size() == 2);
+  CHECK(config.mods.at(L"b mod").enable);
+  CHECK(config.mods.at(L"zażółć mod").priority == 50);
+  CHECK(read_text(file).find("priority: 50") != std::string::npos);
+}
+
+TEST_CASE("a config gets only what it misses")
+{
+  const fs::path file = config_file("partial.yaml",
+                                    "hot_reload: false\n"
+                                    "modifications:\n"
+                                    "  A mod:\n"
+                                    "    priority: 70\n"
+                                    "  Gone mod:\n"
+                                    "    enable: false\n");
+
+  complete_config(file, { L"a MOD", L"New mod" });
+  const modme_config config = read_config(file);
+
+  CHECK_FALSE(config.hot_reload);
+  REQUIRE(config.mods.size() == 3);
+  CHECK(config.mods.at(L"a mod").enable);
+  CHECK(config.mods.at(L"a mod").priority == 70);
+  CHECK_FALSE(config.mods.at(L"gone mod").enable);
+  CHECK(config.mods.at(L"new mod").priority == 50);
+  CHECK(read_text(file).find("a MOD") == std::string::npos);
+}
+
+TEST_CASE("complete or broken configs are left as they are")
+{
+  const char* complete = "hot_reload: true\n"
+                         "modifications:\n"
+                         "  A: {enable: true, priority: 50}\n";
+  const char* broken = "hot_reload: false\nmodifications: [\n";
+
+  complete_config(config_file("complete.yaml", complete), { L"A" });
+  complete_config(config_file("broken_kept.yaml", broken), { L"A" });
+
+  CHECK(read_text(exe_dir() / "config" / "complete.yaml") == complete);
+  CHECK(read_text(exe_dir() / "config" / "broken_kept.yaml") == broken);
+}
+
+TEST_CASE("the game config gets the mods found at startup")
+{
+  const fake_game& g = game();
+  REQUIRE(g.modme != nullptr);
+
+  const modme_config config = read_config(g.update / "Modme.yaml");
+
+  CHECK(config.mods.at(L"testmod").priority == 50);
+  CHECK(config.mods.at(L"zażółć mod").enable);
+  CHECK_FALSE(config.mods.at(L"off mod").enable);
+}
+
 TEST_CASE("missing or broken config means defaults")
 {
   const modme_config missing =

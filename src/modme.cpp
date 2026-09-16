@@ -19,12 +19,20 @@ module_path(HMODULE module)
   return { buf, buf + GetModuleFileNameW(module, buf, DWORD(std::size(buf))) };
 }
 
+static modme_config
+load_config(const fs::path& root, const fs::path& config_file)
+{
+  complete_config(config_file, mod_folders(root));
+
+  return read_config(config_file);
+}
+
 static void
 reload(const fs::path& root,
        const fs::path& config_file,
        const std::vector<fs::path>& plugins)
 {
-  const modme_config config = read_config(config_file);
+  const modme_config config = load_config(root, config_file);
 
   if (!config.hot_reload) {
     log_line(L"Hot reload: off");
@@ -62,7 +70,7 @@ initialize()
     return;
   }
 
-  scanned_mods mods = scan_mods(root, read_config(config_file).mods);
+  scanned_mods mods = scan_mods(root, load_config(root, config_file).mods);
   const std::vector<fs::path> plugins = mods.plugins;
 
   install_file_hooks(game, std::move(mods));

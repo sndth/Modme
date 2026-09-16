@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 struct mod_settings
 {
@@ -21,3 +22,7 @@ struct modme_config
 
 modme_config
 read_config(const std::filesystem::path& file);
+
+void
+complete_config(const std::filesystem::path& file,
+                const std::vector<std::wstring>& mods);

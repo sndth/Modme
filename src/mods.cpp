@@ -21,24 +21,18 @@ settings_of(const fs::path& mod, const mod_config& config)
   return it == config.end() ? mod_settings{} : it->second;
 }
 
-static std::vector<fs::path>
-list_mods(const fs::path& root, const mod_config& config)
+std::vector<std::wstring>
+mod_folders(const fs::path& root)
 {
-  std::vector<fs::path> mods;
+  std::vector<std::wstring> names;
   std::error_code error;
 
   for (fs::directory_iterator it(root, error), end; !error && it != end;
        it.increment(error)) {
     std::error_code ignored;
 
-    if (!it->is_directory(ignored)) {
-      continue;
-    }
-
-    if (settings_of(it->path(), config).enable) {
-      mods.push_back(it->path());
-    } else {
-      log_line(L"Mod: {} - disabled", it->path().filename().native());
+    if (it->is_directory(ignored)) {
+      names.push_back(it->path().filename().native());
     }
   }
 
@@ -46,7 +40,25 @@ list_mods(const fs::path& root, const mod_config& config)
     log_line(L"Error: {}: {}", root.native(), widen(error.message()));
   }
 
-  std::ranges::sort(mods, {}, [&](const fs::path& mod) {
+  std::ranges::sort(names, {}, lower);
+
+  return names;
+}
+
+static std::vector<fs::path>
+list_mods(const fs::path& root, const mod_config& config)
+{
+  std::vector<fs::path> mods;
+
+  for (const std::wstring& name : mod_folders(root)) {
+    if (settings_of(name, config).enable) {
+      mods.push_back(root / name);
+    } else {
+      log_line(L"Mod: {} - disabled", name);
+    }
+  }
+
+  std::ranges::stable_sort(mods, {}, [&](const fs::path& mod) {
     return std::pair(-settings_of(mod, config).priority,
                      lower(mod.filename().native()));
   });
