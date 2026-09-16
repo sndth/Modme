@@ -40,7 +40,7 @@ TEST_CASE("a plugin that fails to load is skipped")
   CHECK(init_count(game().mod / "scripts" / "modme_first.asi") == 1);
 }
 
-TEST_CASE("a mod with only plugins loads them without hooking files")
+TEST_CASE("a mod with only plugins loads them")
 {
   const fs::path root = exe_dir() / "only_plugins";
   fs::remove_all(root);
@@ -54,7 +54,5 @@ TEST_CASE("a mod with only plugins loads them without hooking files")
 
   const std::string log = read_text(root / "Mods.log");
   CHECK(log.find("Mod: Plugins - 0 file(s), 1 plugin(s)") != std::string::npos);
-  CHECK(log.find("Hooks: skipped, no mod files") != std::string::npos);
-  CHECK(log.find("Hooks: 8/8") == std::string::npos);
   CHECK(log.find("Plugin Plugins\\only.asi loaded") != std::string::npos);
 }

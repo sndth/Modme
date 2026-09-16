@@ -75,7 +75,7 @@ TEST_CASE("log says when the mods folder is missing")
   CHECK(log.find("] Mods folder not found: no_mods\\Empty\n") !=
         std::string::npos);
   CHECK(log.find("Error:") == std::string::npos);
-  CHECK(log.find("Hooks: skipped, no mod files") != std::string::npos);
+  CHECK(log.find("Hooks:") == std::string::npos);
 }
 
 TEST_CASE("Modme.asi carries its version")

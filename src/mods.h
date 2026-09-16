@@ -13,6 +13,8 @@ struct mod_file
   std::wstring mod;
   std::wstring name;
   bool folder = false;
+
+  bool operator==(const mod_file&) const = default;
 };
 
 using file_overrides = std::unordered_map<std::wstring, mod_file>;

@@ -1,7 +1,9 @@
+#include "archive_hooks.h"
 #include "hooks.h"
 #include "log.h"
 #include "plugins.h"
 #include "version.h"
+#include "watch.h"
 
 #include <Windows.h>
 #include <mutex>
@@ -18,31 +20,54 @@ module_path(HMODULE module)
 }
 
 static void
+reload(const fs::path& root,
+       const fs::path& config_file,
+       const std::vector<fs::path>& plugins)
+{
+  const modme_config config = read_config(config_file);
+
+  if (!config.hot_reload) {
+    log_line(L"Hot reload: off");
+    return;
+  }
+
+  log_line(L"Hot reload");
+  scanned_mods mods = scan_mods(root, config.mods);
+
+  if (mods.plugins != plugins) {
+    log_line(L"Hot reload: plugin changes need a restart");
+  }
+
+  log_archive_changes(mods);
+  set_mods(std::move(mods));
+}
+
+static void
 initialize()
 {
   const fs::path asi = module_path(self_module);
   const fs::path game = module_path(nullptr).parent_path();
   const fs::path root = fs::path(asi).replace_extension();
+  const fs::path config_file = fs::path(asi).replace_extension(L".yaml");
 
   open_log(fs::path(asi).replace_extension(L".log"));
   log_line(L"Modme v" MODME_VERSION);
   const fs::path dir = root.lexically_proximate(game);
-  scanned_mods mods;
+  std::error_code error;
 
   log_line(L"Dir: {}", dir.native());
 
-  if (fs::is_directory(root)) {
-    mods =
-      scan_mods(root, read_config(fs::path(asi).replace_extension(L".yaml")));
-  } else {
+  if (!fs::is_directory(root, error)) {
     log_line(L"Mods folder not found: {}", dir.native());
+    return;
   }
 
-  install_file_hooks(game,
-                     std::move(mods.files),
-                     std::move(mods.archives),
-                     std::move(mods.roots));
-  load_plugins(root, mods.plugins);
+  scanned_mods mods = scan_mods(root, read_config(config_file).mods);
+  const std::vector<fs::path> plugins = mods.plugins;
+
+  install_file_hooks(game, std::move(mods));
+  load_plugins(root, plugins);
+  watch_mods(root, config_file, [=] { reload(root, config_file, plugins); });
 }
 
 extern "C" __declspec(dllexport) void

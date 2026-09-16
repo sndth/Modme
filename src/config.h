@@ -13,5 +13,11 @@ struct mod_settings
 
 using mod_config = std::unordered_map<std::wstring, mod_settings>;
 
-mod_config
+struct modme_config
+{
+  bool hot_reload = true;
+  mod_config mods;
+};
+
+modme_config
 read_config(const std::filesystem::path& file);
