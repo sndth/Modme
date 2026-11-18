@@ -32,15 +32,22 @@ reload(const fs::path& root,
        const fs::path& config_file,
        const std::vector<fs::path>& plugins)
 {
-  const modme_config config = load_config(root, config_file);
+  const auto config = try_read_config(config_file);
 
-  if (!config.hot_reload) {
+  if (!config) {
+    log_line(L"Hot reload: invalid config, keeping current mods");
+    return;
+  }
+
+  complete_config(config_file, mod_folders(root));
+
+  if (!config->hot_reload) {
     log_line(L"Hot reload: off");
     return;
   }
 
   log_line(L"Hot reload");
-  scanned_mods mods = scan_mods(root, config.mods);
+  scanned_mods mods = scan_mods(root, config->mods);
 
   if (mods.plugins != plugins) {
     log_line(L"Hot reload: plugin changes need a restart");

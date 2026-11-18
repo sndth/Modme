@@ -58,10 +58,15 @@ list_mods(const fs::path& root, const mod_config& config)
     }
   }
 
-  std::ranges::stable_sort(mods, {}, [&](const fs::path& mod) {
-    return std::pair(-settings_of(mod, config).priority,
-                     lower(mod.filename().native()));
-  });
+  std::ranges::stable_sort(mods,
+                           [&](const fs::path& left, const fs::path& right) {
+                             const auto a = settings_of(left, config).priority;
+                             const auto b = settings_of(right, config).priority;
+
+                             return a != b ? a > b
+                                           : lower(left.filename().native()) <
+                                               lower(right.filename().native());
+                           });
 
   return mods;
 }

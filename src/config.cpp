@@ -5,6 +5,7 @@
 #include <Windows.h>
 #include <fkYAML/node.hpp>
 #include <fstream>
+#include <stdexcept>
 
 static std::wstring
 from_utf8(const std::string& text)
@@ -125,6 +126,97 @@ read_root(const fkyaml::node& root, modme_config& config)
   }
 }
 
+static void
+validate_config(const fkyaml::node& root)
+{
+  if (!root.is_mapping()) {
+    throw std::runtime_error("the config must be a mapping");
+  }
+
+  if (root.contains("hot_reload") && !root["hot_reload"].is_boolean()) {
+    throw std::runtime_error("hot_reload must be true or false");
+  }
+
+  if (!root.contains("modifications")) {
+    return;
+  }
+
+  if (!root["modifications"].is_mapping()) {
+    throw std::runtime_error("modifications must be a mapping");
+  }
+
+  for (const auto& [key, value] : root["modifications"].as_map()) {
+    if (!key.is_string() || !value.is_mapping()) {
+      throw std::runtime_error("each modification needs a name and a mapping");
+    }
+    if (value.contains("enable") && !value["enable"].is_boolean()) {
+      throw std::runtime_error("mod enable must be true or false");
+    }
+    if (value.contains("priority") && !value["priority"].is_integer()) {
+      throw std::runtime_error("mod priority must be a whole number");
+    }
+  }
+}
+
+std::optional<modme_config>
+try_read_config(const std::filesystem::path& file)
+{
+  try {
+    std::ifstream in(file, std::ios::binary);
+
+    if (!in) {
+      log_line(L"Config: can't read {}", file.filename().native());
+      return std::nullopt;
+    }
+
+    const auto root = fkyaml::node::deserialize(in);
+    validate_config(root);
+    modme_config config;
+    read_root(root, config);
+    return config;
+  } catch (const std::exception& error) {
+    log_line(L"Config: {}", widen(error.what()));
+    return std::nullopt;
+  }
+}
+
+static bool
+write_config(const std::filesystem::path& file, const std::string& contents)
+{
+  const auto target = std::filesystem::absolute(file);
+  wchar_t temporary[MAX_PATH]{};
+
+  if (!GetTempFileNameW(target.parent_path().c_str(), L"mme", 0, temporary)) {
+    log_line(L"Config: can't create temporary file (error {})", GetLastError());
+    return false;
+  }
+
+  bool written = false;
+  {
+    std::ofstream out(temporary, std::ios::binary | std::ios::trunc);
+    out << contents;
+    out.close();
+    written = bool(out);
+  }
+
+  if (written &&
+      MoveFileExW(temporary,
+                  target.c_str(),
+                  MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+    return true;
+  }
+
+  if (written) {
+    log_line(L"Config: can't replace {} (error {})",
+             file.filename().native(),
+             GetLastError());
+  } else {
+    log_line(L"Config: can't write {}", file.filename().native());
+  }
+  DeleteFileW(temporary);
+  return false;
+}
+
 modme_config
 read_config(const std::filesystem::path& file)
 {
@@ -180,10 +272,10 @@ complete_config(const std::filesystem::path& file,
       changed |= complete_mods(root["modifications"], mods);
     }
 
-    if (changed) {
-      std::ofstream(file, std::ios::binary) << fkyaml::node::serialize(root);
+    if (changed && write_config(file, fkyaml::node::serialize(root))) {
       log_line(L"Config: updated {}", file.filename().native());
     }
-  } catch (const std::exception&) {
+  } catch (const std::exception& error) {
+    log_line(L"Config: {}", widen(error.what()));
   }
 }
