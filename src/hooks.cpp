@@ -1,3 +1,9 @@
+// SPDX-FileCopyrightText: 2026 Jacek Ziółkowski (sndth)
+// SPDX-License-Identifier: MIT
+
+/// @file
+/// @brief Redirect Win32 reads and merge directory listings from enabled mods.
+
 #include "hooks.h"
 #include "archive_hooks.h"
 #include "log.h"
@@ -13,6 +19,8 @@
 
 namespace fs = std::filesystem;
 
+/// @brief A directory-enumeration snapshot behind a synthetic find handle.
+/// @note Entries survive reloads and are released by the FindClose detour.
 struct merged_listing
 {
   std::vector<WIN32_FIND_DATAW> entries;
@@ -75,6 +83,9 @@ full_path(const wchar_t* path)
   return len < std::size(full) ? std::wstring(full, len) : std::wstring();
 }
 
+/// @brief Derive a game-relative key, or a drive-relative fallback key outside
+/// it.
+/// @note redirect() separately protects real files outside the game directory.
 static std::wstring
 mod_key(const std::wstring& path)
 {
@@ -89,6 +100,10 @@ mod_key(const std::wstring& path)
   return {};
 }
 
+/// @brief Resolve a read-only override while preserving writes and outside
+/// files.
+/// @return path unchanged, or a replacement path borrowed from mods.
+/// @note The caller must retain the snapshot until the native API returns.
 static const wchar_t*
 redirect(const scanned_mods& mods, const wchar_t* path, DWORD access)
 {
@@ -194,6 +209,11 @@ list_into(const std::wstring& pattern,
   orig_find_close(handle);
 }
 
+/// @brief Merge wildcard results using mod priority and original-file fallback.
+/// @return A synthetic find handle, INVALID_HANDLE_VALUE for an empty merge,
+/// or std::nullopt when ordinary native enumeration should handle the request.
+/// @note Mod plugin files and archive-entry directories are hidden from
+/// results.
 static std::optional<HANDLE>
 list_merged(const scanned_mods& mods,
             const wchar_t* pattern,

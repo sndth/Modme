@@ -1,3 +1,9 @@
+// SPDX-FileCopyrightText: 2026 Jacek Ziółkowski (sndth)
+// SPDX-License-Identifier: MIT
+
+/// @file
+/// @brief Load ASIs with their adjacent dependencies and log failures.
+
 #include "plugins.h"
 #include "log.h"
 

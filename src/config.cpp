@@ -1,3 +1,9 @@
+// SPDX-FileCopyrightText: 2026 Jacek Ziółkowski (sndth)
+// SPDX-License-Identifier: MIT
+
+/// @file
+/// @brief Read UTF-8 YAML settings and safely complete missing defaults.
+
 #include "config.h"
 #include "log.h"
 #include "mods.h"
@@ -126,6 +132,9 @@ read_root(const fkyaml::node& root, modme_config& config)
   }
 }
 
+/// @brief Validate Modme's schema before any reload state can be published.
+/// @note YAML syntax is the parser's responsibility. Missing fields are valid;
+/// present fields must have the types expected by Modme.
 static void
 validate_config(const fkyaml::node& root)
 {
@@ -180,6 +189,8 @@ try_read_config(const std::filesystem::path& file)
   }
 }
 
+/// @brief Write beside the target and replace it only after a successful close.
+/// @return True when replacement succeeded; otherwise log and remove the temp.
 static bool
 write_config(const std::filesystem::path& file, const std::string& contents)
 {

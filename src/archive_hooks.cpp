@@ -1,3 +1,9 @@
+// SPDX-FileCopyrightText: 2026 Jacek Ziółkowski (sndth)
+// SPDX-License-Identifier: MIT
+
+/// @file
+/// @brief Serve virtual archives through Win32 file and IOCP hooks.
+
 #include "archive_hooks.h"
 #include "archive.h"
 #include "log.h"
@@ -12,6 +18,11 @@
 #include <unordered_map>
 #include <unordered_set>
 
+/// @brief Cached archive layout, owning snapshot and lazily opened
+/// replacements.
+/// @note The snapshot keeps archive_part::file pointers valid across hot
+/// reloads. Layouts are cached until exit; replacement file contents are still
+/// read live.
 struct archive_state
 {
   ~archive_state();
@@ -21,6 +32,9 @@ struct archive_state
   std::unordered_map<const mod_file*, HANDLE> files;
 };
 
+/// @brief State for one native IMG/DIR handle, including its virtual position.
+/// @note mutex serializes I/O and closing. Shared ownership keeps this state
+/// alive after removal from the handle table; closed guards the native handle.
 struct tracked_file
 {
   archive_state* archive;
@@ -61,6 +75,10 @@ archive_state::~archive_state()
   }
 }
 
+/// @brief Read at an explicit offset through the original Win32 API.
+/// @return True on success or EOF; unread output bytes are left to the caller.
+/// @note Callers initialize padding before reading short replacement files.
+/// Private overlapped reads suppress IOCP packets and wait on their own event.
 static bool
 read_at(HANDLE file, bool overlapped, uint64_t offset, char* out, DWORD length)
 {
@@ -117,6 +135,9 @@ read_all(HANDLE file, bool overlapped)
   return contents;
 }
 
+/// @brief Find or build the process-lifetime layout for a game-relative IMG
+/// key.
+/// @return A cache-owned state, or nullptr when no usable overrides exist.
 static archive_state*
 find_archive(const std::wstring& img, HANDLE handle, bool dir, bool overlapped)
 {
@@ -164,6 +185,9 @@ find_archive(const std::wstring& img, HANDLE handle, bool dir, bool overlapped)
   return built.emplace(img, std::move(archive)).first->second.get();
 }
 
+/// @brief Retain tracked state while holding the handle-table lock briefly.
+/// @note This protects state ownership only. Callers must also lock its mutex
+/// and check closed before operating on the native handle.
 static std::shared_ptr<tracked_file>
 find_tracked(HANDLE handle)
 {
@@ -183,6 +207,8 @@ size_of(const tracked_file& file)
   return file.dir ? file.archive->layout.dir.size() : file.archive->layout.size;
 }
 
+/// @brief Lazily open and cache a synchronous replacement handle.
+/// @return A handle owned by archive, or INVALID_HANDLE_VALUE on failure.
 static HANDLE
 entry_handle(archive_state& archive, const mod_file& file)
 {
@@ -216,6 +242,8 @@ part_at(const virtual_archive& layout, uint64_t offset)
   return it == layout.parts.begin() ? layout.parts.end() : std::prev(it);
 }
 
+/// @brief Check whether a whole request lies in one unchanged IMG range.
+/// @note Such reads keep native asynchronous completion; mixed reads cannot.
 static bool
 passes_through(const tracked_file& file, uint64_t offset, DWORD length)
 {
@@ -231,6 +259,14 @@ passes_through(const tracked_file& file, uint64_t offset, DWORD length)
   return offset <= end && length <= end - offset;
 }
 
+/// @brief Assemble DIR bytes or an IMG range from original and modded sources.
+/// @param file Tracked state supplying the layout and original handle mode.
+/// @param handle Native archive handle used for unchanged byte ranges.
+/// @param offset Byte offset within the virtual DIR or IMG.
+/// @param buffer Destination with room for the requested byte count.
+/// @param length Requested byte count, reduced to the virtual EOF on return.
+/// @note Padding is zero-filled. This performs the read synchronously.
+/// @pre The caller holds file.mutex so the native handle cannot be closed.
 static bool
 read_archive(tracked_file& file,
              HANDLE handle,
@@ -321,6 +357,13 @@ seek(tracked_file& file, int64_t distance, DWORD method)
   return file.position;
 }
 
+/// @brief Serve virtual reads and complete the caller's event/IOCP
+/// notification.
+/// @note Replacement reads finish synchronously even on overlapped handles.
+/// Emulated reads retain no caller buffer after return; unchanged ranges may
+/// use the native asynchronous path instead.
+/// @sa
+/// https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-getqueuedcompletionstatus
 static BOOL WINAPI
 hook_read_file(HANDLE handle,
                LPVOID buffer,
@@ -554,6 +597,8 @@ hook_create_io_completion_port(HANDLE handle,
   const HANDLE result =
     orig_create_io_completion_port(handle, port, key, threads);
   const DWORD error = GetLastError();
+  // Keep our own reference to the port: the caller may close its original
+  // handle while continuing to use another duplicate of the same port.
   if (result && !file->completion_port) {
     HANDLE owned = nullptr;
     if (DuplicateHandle(GetCurrentProcess(),

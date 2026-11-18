@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Jacek Ziółkowski (sndth)
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include <Windows.h>
@@ -129,6 +132,9 @@ load_asi(const fs::path& path)
   return module;
 }
 
+/// @brief Paths and startup observations for a process-local fake game.
+/// @note Loaded ASIs and detached watchers remain active until process exit.
+/// Run independent integration cases in separate processes via tool/test.py.
 struct fake_game
 {
   fs::path root;
@@ -141,6 +147,11 @@ struct fake_game
   HMODULE modme = nullptr;
 };
 
+/// @brief Build the fixture and initialize its copied Modme ASI once per
+/// process.
+/// @note Test writes stay under exe_dir(). Optional external IMG input is
+/// linked for read-only verification; its original installation is not
+/// modified.
 inline const fake_game&
 game()
 {
