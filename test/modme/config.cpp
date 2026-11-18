@@ -126,3 +126,49 @@ TEST_CASE("missing or broken config means defaults")
   CHECK(broken.hot_reload);
   CHECK(broken.mods.empty());
 }
+
+TEST_CASE("reload config rejects missing, empty and invalid documents")
+{
+  CHECK_FALSE(try_read_config(exe_dir() / "config" / "not_found.yaml"));
+
+  for (const char* text : { "",
+                            "modifications: [",
+                            "[]",
+                            "hot_reload: sometimes\n",
+                            "modifications: []\n",
+                            "modifications: {mod: 12}\n",
+                            "modifications: {mod: {enable: maybe}}\n",
+                            "modifications: {mod: {priority: high}}\n" }) {
+    CAPTURE(text);
+    CHECK_FALSE(try_read_config(config_file("invalid_reload.yaml", text)));
+  }
+
+  const auto config = try_read_config(config_file(
+    "valid_reload.yaml", "modifications: {mod: {enable: false}}\n"));
+  REQUIRE(config.has_value());
+  CHECK_FALSE(config->mods.at(L"mod").enable);
+  CHECK(config->mods.at(L"mod").priority == 50);
+}
+
+TEST_CASE("failed config replacement preserves the original document")
+{
+  const char* original = "hot_reload: false\n";
+  const fs::path file = config_file("locked.yaml", original);
+  const HANDLE locked = CreateFileW(file.c_str(),
+                                    GENERIC_READ,
+                                    FILE_SHARE_READ,
+                                    nullptr,
+                                    OPEN_EXISTING,
+                                    0,
+                                    nullptr);
+  REQUIRE(locked != INVALID_HANDLE_VALUE);
+  complete_config(file, { L"new mod" });
+  CloseHandle(locked);
+  CHECK(read_text(file) == original);
+
+  complete_config(file, { L"new mod" });
+  const auto config = try_read_config(file);
+  REQUIRE(config.has_value());
+  CHECK_FALSE(config->hot_reload);
+  CHECK(config->mods.contains(L"new mod"));
+}

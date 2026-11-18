@@ -68,6 +68,25 @@ TEST_CASE("hot reload picks up new files and config changes")
                "    enable: false\n");
   CHECK(eventually([] { return read_a("TXD\\off.nft").empty(); }));
   CHECK(read_a("TXD\\hud.nft") == "modded");
+
+  const size_t rejected =
+    log_count(g, "] Hot reload: invalid config, keeping current mods\n");
+  write_config(g, "modifications: [\n");
+  REQUIRE(eventually([&] {
+    return log_count(g,
+                     "] Hot reload: invalid config, keeping current mods\n") >
+           rejected;
+  }));
+  CHECK(read_a("TXD\\off.nft").empty());
+  CHECK(read_a("TXD\\hud.nft") == "modded");
+
+  write_config(g, "modifications:\n  zażółć mod:\n    priority: 60\n");
+  CHECK(eventually([] { return read_a("TXD\\hud.nft") == "conflict"; }));
+  CHECK(read_a("TXD\\off.nft") == "off");
+
+  write_config(g, "modifications:\n  off mod:\n    enable: false\n");
+  REQUIRE(eventually([] { return read_a("TXD\\off.nft").empty(); }));
+  CHECK(read_a("TXD\\hud.nft") == "modded");
 }
 
 TEST_CASE("hot reload keeps opened archives and plugins until a restart")

@@ -3,6 +3,7 @@
 
 #include <aclapi.h>
 #include <doctest.h>
+#include <limits>
 
 static bool
 set_empty_dacl(const fs::path& folder, SECURITY_INFORMATION protection)
@@ -127,6 +128,25 @@ TEST_CASE("disabled mods give no files and no plugins")
   CHECK(mods.plugins.empty());
   REQUIRE(mods.roots.size() == 1);
   CHECK(mods.roots[0].filename() == "b_on");
+}
+
+TEST_CASE("priorities sort across the entire signed integer range")
+{
+  const fs::path root = scan_folder("priority_limits");
+  write_file(root / "a_min" / "shared.txt", "a");
+  write_file(root / "b_zero" / "shared.txt", "b");
+  write_file(root / "c_max" / "shared.txt", "c");
+  mod_config config;
+  config[L"a_min"].priority = std::numeric_limits<int64_t>::min();
+  config[L"b_zero"].priority = 0;
+  config[L"c_max"].priority = std::numeric_limits<int64_t>::max();
+
+  const auto mods = scan_mods(root, config);
+  REQUIRE(mods.roots.size() == 3);
+  CHECK(mods.roots[0].filename() == "c_max");
+  CHECK(mods.roots[1].filename() == "b_zero");
+  CHECK(mods.roots[2].filename() == "a_min");
+  CHECK(mods.files.at(L"shared.txt").mod == L"c_max");
 }
 
 TEST_CASE("mod files are matched case-insensitively and keep their name")

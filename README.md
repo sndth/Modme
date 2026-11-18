@@ -48,6 +48,8 @@ A disabled mod gives no files and loads no plugins.
 
 With `hot_reload` on (the default), changes in the mods folder and in `Modme.yaml` apply while the game runs: files the game opens from then on come from the new setup. What the game already loaded stays until it loads it again, and plugins and entries of archives the game already opened change after a restart.
 
+If the configuration is missing, empty or invalid during hot reload, the current setup stays active. Fixing the file allows the next reload to apply it. On startup, a missing configuration is generated; unreadable or broken configuration falls back to defaults. Automatic configuration updates use a temporary file before replacing the original.
+
 `Modme.log` next to `Modme.asi` lists loaded mods, conflicts, plugins and replaced files.
 
 ## Limitations

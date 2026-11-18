@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -22,6 +23,9 @@ struct modme_config
 
 modme_config
 read_config(const std::filesystem::path& file);
+
+std::optional<modme_config>
+try_read_config(const std::filesystem::path& file);
 
 void
 complete_config(const std::filesystem::path& file,
