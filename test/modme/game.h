@@ -10,6 +10,20 @@
 
 namespace fs = std::filesystem;
 
+inline fs::path
+test_environment_path(const wchar_t* name)
+{
+  const DWORD size = GetEnvironmentVariableW(name, nullptr, 0);
+  if (!size)
+    return {};
+  std::wstring value(size, L'\0');
+  const DWORD length = GetEnvironmentVariableW(name, value.data(), size);
+  if (!length || length >= size)
+    return {};
+  value.resize(length);
+  return value;
+}
+
 struct archive_entry
 {
   const char* name;
@@ -199,6 +213,28 @@ game()
     std::ofstream(mod_archive / "nothing.txt");
     std::ofstream(mod_archive / "this_name_is_longer_than_24.txt") << "long";
     std::ofstream(polish_archive / "small.txt") << "conflict";
+
+    // Optional integration fixture using an existing IMG/DIR and a real mod.
+    // The game installation is only read; all test writes stay beside the EXE.
+    const fs::path external = test_environment_path(L"MODME_TEST_ARCHIVE");
+    const fs::path external_entries =
+      test_environment_path(L"MODME_TEST_ENTRIES");
+    if (!external.empty() && !external_entries.empty()) {
+      const fs::path image = g.root / "Stream" / "Real.img";
+      fs::remove(image);
+      fs::create_hard_link(external, image);
+      fs::copy_file(fs::path(external).replace_extension(".dir"),
+                    g.root / "Stream" / "Real.dir",
+                    fs::copy_options::overwrite_existing);
+      const fs::path entries =
+        g.update / "Modme" / "External archive" / "Stream" / "Real.img";
+      fs::create_directories(entries);
+      for (const auto& file : fs::directory_iterator(external_entries)) {
+        if (file.is_regular_file()) {
+          fs::copy_file(file.path(), entries / file.path().filename());
+        }
+      }
+    }
 
     fs::copy_file(g.root / "Modme.asi", g.update / "Modme.asi");
     fs::copy_file(g.root / "TestPlugin.asi", g.mod / "ual_first.asi");

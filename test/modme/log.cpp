@@ -30,7 +30,7 @@ TEST_CASE("log lists mods, conflicts, replaced files and plugins")
         std::string::npos);
   CHECK(log.find("Conflict: TXD\\hud.nft from Zażółć mod ignored, using "
                  "TestMod") != std::string::npos);
-  CHECK(log.find("] Hooks: 19/19\n") != std::string::npos);
+  CHECK(log.find("] Hooks: 21/21\n") != std::string::npos);
   CHECK(log.find("] Mod: Off mod - disabled\n") != std::string::npos);
   CHECK(read_a("TXD\\off.nft").empty());
 
