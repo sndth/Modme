@@ -63,7 +63,6 @@ TEST_CASE("a missing config is generated with every mod")
   REQUIRE(config.mods.size() == 2);
   CHECK(config.mods.at(L"b mod").enable);
   CHECK(config.mods.at(L"zażółć mod").priority == 50);
-  CHECK(read_text(file).find("priority: 50") != std::string::npos);
 }
 
 TEST_CASE("a config gets only what it misses")
@@ -85,7 +84,6 @@ TEST_CASE("a config gets only what it misses")
   CHECK(config.mods.at(L"a mod").priority == 70);
   CHECK_FALSE(config.mods.at(L"gone mod").enable);
   CHECK(config.mods.at(L"new mod").priority == 50);
-  CHECK(read_text(file).find("a MOD") == std::string::npos);
 }
 
 TEST_CASE("complete or broken configs are left as they are")

@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Windows ${{ matrix.arch }} / ${{ matrix.configuration }}
+    runs-on: windows-2025
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86, x64]
+        configuration: [Debug, Release, ASan]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Locate MSBuild and the sanitizer runtime
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -products * -requires Microsoft.Component.MSBuild -property installationPath
+          "$vs/MSBuild/Current/Bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          $runtime = Get-ChildItem "$vs/VC/Tools/MSVC/*/bin/Hostx64/${{ matrix.arch }}/clang_rt.asan_dynamic-*.dll" | Sort-Object FullName | Select-Object -Last 1
+          if ('${{ matrix.configuration }}' -eq 'ASan' -and !$runtime) { throw 'ASan runtime is missing' }
+          if ($runtime) { $runtime.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8 }
+      - name: Generate projects
+        run: ./premake5.exe vs2022
+      - name: Build
+        shell: pwsh
+        run: |
+          $platform = if ('${{ matrix.arch }}' -eq 'x86') { 'Win32' } else { 'x64' }
+          MSBuild build/Modme.sln /m /p:Configuration=${{ matrix.configuration }} /p:Platform=$platform /verbosity:minimal /nologo
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Test in isolated processes
+        env:
+          ASAN_OPTIONS: halt_on_error=1
+        run: python tool/test.py build/bin/${{ matrix.arch }}/${{ matrix.configuration }}/TestModme.exe --report build/results.xml
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: results-${{ matrix.arch }}-${{ matrix.configuration }}
+          path: |
+            build/results.xml
+            build/bin/${{ matrix.arch }}/${{ matrix.configuration }}/**/*.log
+          if-no-files-found: ignore
+
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - run: python tool/format.py --check

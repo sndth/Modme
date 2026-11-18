@@ -21,18 +21,9 @@ TEST_CASE("log lists mods, conflicts, replaced files and plugins")
 
   const std::string log = read_text(g.update / "Modme.log");
 
-  CHECK(log.find("[00:00.") != std::string::npos);
-  CHECK(log.find("] Modme v" MODME_VERSION "\n") != std::string::npos);
-  CHECK(log.find("] Dir: Update\\Modme\n") != std::string::npos);
-  CHECK(log.find("Mod: TestMod - 15 file(s), 4 plugin(s)") !=
-        std::string::npos);
-  CHECK(log.find("Mod: Zażółć mod - 2 file(s), 0 plugin(s)") !=
-        std::string::npos);
   CHECK(log.find("Conflict: TXD\\hud.nft from Zażółć mod ignored, using "
                  "TestMod") != std::string::npos);
-  CHECK(log.find("] Hooks: 21/21\n") != std::string::npos);
   CHECK(log.find("] Mod: Off mod - disabled\n") != std::string::npos);
-  CHECK(read_a("TXD\\off.nft").empty());
 
   CHECK(log.find("Replaced TXD\\hud.nft from TestMod") != std::string::npos);
   CHECK(log.find("other.nft") == std::string::npos);

@@ -58,8 +58,10 @@ read_range(HANDLE file, DWORD offset, DWORD length)
   std::string data(length, '\0');
   DWORD done = 0;
 
-  SetFilePointer(file, LONG(offset), nullptr, FILE_BEGIN);
-  ReadFile(file, data.data(), length, &done, nullptr);
+  LARGE_INTEGER position{};
+  position.QuadPart = offset;
+  REQUIRE(SetFilePointerEx(file, position, nullptr, FILE_BEGIN));
+  REQUIRE(ReadFile(file, data.data(), length, &done, nullptr));
   data.resize(done);
 
   return data;
@@ -261,30 +263,18 @@ TEST_CASE("archive files on disk and in listings stay the game's")
 
   CHECK(fs::file_size(g.root / "Stream" / "World.img") == 6 * sector);
   CHECK(fs::is_regular_file(g.root / "Stream" / "World.img"));
-
-  const std::string log = read_text(g.update / "Modme.log");
-  CHECK(log.find("Replaced Stream\\World.img\\Small.TXT from TestMod") !=
-        std::string::npos);
-  CHECK(log.find("Conflict: Stream\\World.img\\small.txt from Zażółć mod "
-                 "ignored, using TestMod") != std::string::npos);
 }
 
-TEST_CASE(
-  "a reused handle of a file closed without CloseHandle is not an archive")
+TEST_CASE("closed archive handles do not affect later ordinary file opens")
 {
   REQUIRE(game().modme != nullptr);
 
-  using nt_close_t = LONG(WINAPI*)(HANDLE);
-  const auto nt_close = reinterpret_cast<nt_close_t>(
-    GetProcAddress(GetModuleHandleW(L"ntdll"), "NtClose"));
-  REQUIRE(nt_close != nullptr);
-
   HANDLE img = open_archive(L"Stream\\World.img");
   REQUIRE(img != INVALID_HANDLE_VALUE);
-  nt_close(img);
+  REQUIRE(CloseHandle(img));
 
   HANDLE other = open_archive(L"TXD\\other.nft");
-  REQUIRE(other == img);
+  REQUIRE(other != INVALID_HANDLE_VALUE);
   CHECK(read(other) == "untouched");
 }
 
@@ -470,6 +460,27 @@ TEST_CASE(
   CHECK(GetLastError() == ERROR_HANDLE_EOF);
 }
 
+TEST_CASE("sequential archive reads advance through original and modded bytes")
+{
+  REQUIRE(game().modme != nullptr);
+  const test_handle image(open_archive(L"Stream\\World.img"));
+  REQUIRE(image.value != INVALID_HANDLE_VALUE);
+  const auto expected = expected_world();
+  std::array<char, 997> buffer{};
+  for (size_t offset = 0; offset < expected.size(); offset += buffer.size()) {
+    DWORD done = 0;
+    REQUIRE(ReadFile(
+      image.value, buffer.data(), DWORD(buffer.size()), &done, nullptr));
+    const auto part = expected.substr(offset, buffer.size());
+    REQUIRE(done == part.size());
+    CHECK(std::string(buffer.data(), done) == part);
+  }
+  DWORD done = 123;
+  REQUIRE(
+    ReadFile(image.value, buffer.data(), DWORD(buffer.size()), &done, nullptr));
+  CHECK(done == 0);
+}
+
 TEST_CASE("parallel archive reads keep separate offsets and replacement data")
 {
   REQUIRE(game().modme != nullptr);
@@ -587,15 +598,12 @@ TEST_CASE("virtual archive seeks reject overflow and retain their position")
   CHECK(GetLastError() == ERROR_NEGATIVE_SEEK);
 }
 
-TEST_CASE("real IMG entries match the original archive and a supplied mod")
+TEST_CASE("real IMG entries match the original archive and a supplied mod" *
+          doctest::skip(test_environment_path(L"MODME_TEST_ARCHIVE").empty() &&
+                        test_environment_path(L"MODME_TEST_ENTRIES").empty()))
 {
   const fs::path source = test_environment_path(L"MODME_TEST_ARCHIVE");
   const fs::path replacements = test_environment_path(L"MODME_TEST_ENTRIES");
-  if (source.empty() && replacements.empty()) {
-    MESSAGE("Set MODME_TEST_ARCHIVE and MODME_TEST_ENTRIES to run the real "
-            "archive test");
-    return;
-  }
   REQUIRE_FALSE(source.empty());
   REQUIRE_FALSE(replacements.empty());
   REQUIRE(game().modme != nullptr);

@@ -10,7 +10,7 @@ Modme is an [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loa
 - Bully: Scholarship Edition
 - Worms Ultimate Mayhem
 
-Modme is intended for other 32-bit games too. Compatibility depends on the file APIs and archive formats a game uses; loading through [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader) alone does not guarantee compatibility. Current testing focuses on Bully: Scholarship Edition.
+Modme builds for 32-bit and 64-bit games. Use the same architecture as the game. Compatibility depends on the file APIs and archive formats a game uses; loading through [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader) alone does not guarantee compatibility. Current game testing focuses on Bully: Scholarship Edition (x86).
 
 ## Installation
 1. Install [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader/releases).
@@ -58,7 +58,7 @@ If the configuration is missing, empty or invalid during hot reload, the current
 - Memory-mapped archive access, `ReadFileEx` completion callbacks and thread pool I/O notifications are not virtualized.
 
 ## Building
-Visual Studio 2026 with the C++ workload:
+Visual Studio 2022 or newer with the C++ workload (including AddressSanitizer for the ASan configuration):
 
 ```
 git clone --recursive https://github.com/sndth/Modme.git
@@ -66,9 +66,29 @@ cd Modme
 premake5.exe vs2026
 ```
 
-Open `build\Modme.slnx`, build and run `TestModme`. The tests load `Modme.asi` into a fake game folder and check file redirection, conflicts, plugin loading and the log.
+Open `build\Modme.slnx` and choose Win32 or x64, and Debug, Release or ASan. For Visual Studio 2022, use `premake5.exe vs2022` and `build\Modme.sln` instead. Outputs are under `build\bin\x86\<configuration>` or `build\bin\x64\<configuration>`.
+
+Run tests with Python 3.10 or newer:
+
+```
+python tool/test.py build/bin/x86/Debug/TestModme.exe
+```
+
+Each test runs in a fresh process, in shuffled order, with a timeout. This isolates process-wide hooks, loaded plugins and hot reload state. `--seed`, `--match` and `--report results.xml` control order, select tests and save a JUnit report. For ASan, put the matching MSVC runtime directory (`bin/Hostx64/x86` or `bin/Hostx64/x64`) on PATH. ASan uses the Windows runtime defaults and stops on memory errors; it does not detect leaks or data races.
 
 To also check a real archive and a folder of replacement entries, set `MODME_TEST_ARCHIVE` to the original `.img` path and `MODME_TEST_ENTRIES` to the folder containing the replacement files before running `TestModme`. Its `.dir` must sit beside the original archive. The test compares every retained entry with its original or replacement bytes and checks replacement reads through IOCP. It creates a hard link to the source IMG in the test folder, so the archive and test output must be on the same volume. The source archive is only read. This verifies file delivery, not whether the game accepts the mod's models and textures.
+
+GitHub CI runs Debug, Release and ASan on Windows x86 and x64, plus a formatting check. It needs no game installation. The real-archive test is skipped unless its environment variables are set; select it with `--match "real IMG*"`.
+
+### Mutation checks
+
+```
+python tool/mutate.py --arch x86 --solution build/Modme.slnx
+```
+
+This builds Release and checks a small, explicit set of faults in Modme's code: conflict order, disabled mods, write protection, config validation, archive sizes, read position and IOCP. A mutation must compile and cause an assertion failure or crash; compiler errors and timeouts fail the run separately. Sources are restored after each mutation and the original binary is rebuilt at the end. Run it without concurrent edits or builds. `--list` lists the faults; `--only <name>` selects one. Reports are saved under `build/mutations/<architecture>`.
+
+The manual **Mutations** GitHub workflow runs these checks for both architectures. This is a regression set, not an exhaustive mutation score. Valgrind and ThreadSanitizer are not run against these Windows binaries.
 
 ## License
 Modme is released under the [MIT](LICENSE) license. It uses [MinHook](https://github.com/TsudaKageyu/minhook) (BSD 2-Clause), [fkYAML](https://github.com/fktn-k/fkYAML) (MIT), [doctest](https://github.com/doctest/doctest) (MIT) for tests and ships [Premake](https://github.com/premake/premake-core) ([BSD 3-Clause](LICENSE-Premake)) for building.
