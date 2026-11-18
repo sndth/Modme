@@ -10,6 +10,22 @@ import time
 import xml.etree.ElementTree as ET
 
 
+def process_failure(result):
+    return (
+        f"exit code {result.returncode} (0x{result.returncode & 0xFFFFFFFF:08X})\n"
+        f"stdout:\n{result.stdout or '<empty>'}\n"
+        f"stderr:\n{result.stderr or '<empty>'}"
+    )
+
+
+def write_report(suite, report):
+    if report:
+        report = Path(report)
+        report.parent.mkdir(parents=True, exist_ok=True)
+        ET.indent(suite)
+        ET.ElementTree(suite).write(report, encoding="utf-8", xml_declaration=True)
+
+
 def cases(executable):
     result = subprocess.run(
         [str(executable), "--list-test-cases", "--reporters=xml"],
@@ -21,7 +37,7 @@ def cases(executable):
         timeout=30,
     )
     if result.returncode:
-        raise RuntimeError(f"Test discovery failed:\n{result.stdout}\n{result.stderr}")
+        raise RuntimeError(f"Test discovery failed: {process_failure(result)}")
     return [
         case.attrib["name"]
         for case in ET.fromstring(result.stdout).findall("TestCase")
@@ -31,7 +47,15 @@ def cases(executable):
 
 def run(executable, pattern="*", timeout=45, seed=1, report=None):
     executable = Path(executable).resolve(strict=True)
-    names = [name for name in cases(executable) if fnmatch.fnmatchcase(name, pattern)]
+    try:
+        names = [name for name in cases(executable) if fnmatch.fnmatchcase(name, pattern)]
+    except (RuntimeError, OSError, subprocess.TimeoutExpired, ET.ParseError) as error:
+        suite = ET.Element("testsuite", name="Modme startup", tests="1", errors="1")
+        case = ET.SubElement(suite, "testcase", name="Test discovery")
+        ET.SubElement(case, "error").text = str(error)
+        write_report(suite, report)
+        print(str(error), file=sys.stderr, flush=True)
+        return 1
     if not names:
         raise RuntimeError(f"No tests match {pattern!r}")
     random.Random(seed).shuffle(names)
@@ -51,7 +75,7 @@ def run(executable, pattern="*", timeout=45, seed=1, report=None):
                 timeout=timeout,
             )
             failed = result.returncode != 0
-            output = result.stdout + result.stderr
+            output = process_failure(result) if failed else result.stdout + result.stderr
         except subprocess.TimeoutExpired:
             failed = True
             output = f"Test exceeded {timeout} seconds"
@@ -63,11 +87,7 @@ def run(executable, pattern="*", timeout=45, seed=1, report=None):
         else:
             print(f"PASS {name}", flush=True)
     suite.set("failures", str(failures))
-    if report:
-        report = Path(report)
-        report.parent.mkdir(parents=True, exist_ok=True)
-        ET.indent(suite)
-        ET.ElementTree(suite).write(report, encoding="utf-8", xml_declaration=True)
+    write_report(suite, report)
     print(f"{len(names) - failures}/{len(names)} tests passed (seed {seed})", flush=True)
     return failures
 

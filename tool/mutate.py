@@ -94,7 +94,7 @@ def main():
                             cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, timeout=90,
                         )
                     output = (report / f"{name}-test.log").read_text(encoding="utf-8")
-                    if "Test exceeded" in output or "Traceback" in output:
+                    if any(marker in output for marker in ("Test exceeded", "Test discovery failed:", "Traceback")):
                         status = "test-error"
                     else:
                         status = "killed" if process.returncode else "survived"

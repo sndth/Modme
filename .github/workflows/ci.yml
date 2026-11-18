@@ -29,14 +29,11 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
-      - name: Locate MSBuild and the sanitizer runtime
+      - name: Locate MSBuild
         shell: pwsh
         run: |
           $vs = & "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -products * -requires Microsoft.Component.MSBuild -property installationPath
           "$vs/MSBuild/Current/Bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
-          $runtime = Get-ChildItem "$vs/VC/Tools/MSVC/*/bin/Hostx64/${{ matrix.arch }}/clang_rt.asan_dynamic-*.dll" | Sort-Object FullName | Select-Object -Last 1
-          if ('${{ matrix.configuration }}' -eq 'ASan' -and !$runtime) { throw 'ASan runtime is missing' }
-          if ($runtime) { $runtime.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8 }
       - name: Generate projects
         run: ./premake5.exe vs2022
       - name: Build
@@ -45,6 +42,19 @@ jobs:
           $platform = if ('${{ matrix.arch }}' -eq 'x86') { 'Win32' } else { 'x64' }
           MSBuild build/Modme.sln /m /p:Configuration=${{ matrix.configuration }} /p:Platform=$platform /verbosity:minimal /nologo
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Use the sanitizer runtime from the build toolset
+        if: matrix.configuration == 'ASan'
+        shell: pwsh
+        run: |
+          $platform = if ('${{ matrix.arch }}' -eq 'x86') { 'Win32' } else { 'x64' }
+          $tools = & MSBuild build/TestModme.vcxproj /p:Configuration=ASan /p:Platform=$platform /getProperty:VCToolsInstallDir /nologo /verbosity:quiet
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $suffix = if ('${{ matrix.arch }}' -eq 'x86') { 'i386' } else { 'x86_64' }
+          $runtime = Join-Path $tools.Trim() "bin/Hostx64/${{ matrix.arch }}/clang_rt.asan_dynamic-$suffix.dll"
+          if (!(Test-Path -LiteralPath $runtime)) { throw "ASan runtime is missing: $runtime" }
+          Write-Host "ASan runtime: $runtime"
+          Copy-Item -LiteralPath $runtime -Destination "build/bin/${{ matrix.arch }}/ASan"
+          Split-Path $runtime | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
       - name: Test in isolated processes
         env:
           ASAN_OPTIONS: halt_on_error=1
