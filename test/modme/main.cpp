@@ -1,3 +1,4 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#define DOCTEST_CONFIG_NO_WINDOWS_SEH
 
 #include <doctest.h>

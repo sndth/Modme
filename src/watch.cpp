@@ -3,6 +3,7 @@
 #include "mods.h"
 
 #include <Windows.h>
+#include <future>
 #include <thread>
 
 namespace fs = std::filesystem;
@@ -35,7 +36,11 @@ mentions(const DWORD* buffer, const std::wstring& name)
 }
 
 static void
-watch_folder(fs::path folder, bool subtree, std::wstring name, HANDLE changed)
+watch_folder(fs::path folder,
+             bool subtree,
+             std::wstring name,
+             HANDLE changed,
+             std::promise<void> ready)
 {
   HANDLE handle =
     CreateFileW(folder.c_str(),
@@ -43,32 +48,58 @@ watch_folder(fs::path folder, bool subtree, std::wstring name, HANDLE changed)
                 FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                 nullptr,
                 OPEN_EXISTING,
-                FILE_FLAG_BACKUP_SEMANTICS,
+                FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED,
                 nullptr);
 
   if (handle == INVALID_HANDLE_VALUE) {
     log_line(L"Hot reload: can't watch {} (error {})",
              folder.native(),
              GetLastError());
+    ready.set_value();
     return;
   }
 
+  const HANDLE completed = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+  if (!completed) {
+    log_line(L"Hot reload: can't create watch event (error {})",
+             GetLastError());
+    CloseHandle(handle);
+    ready.set_value();
+    return;
+  }
+  OVERLAPPED pending{};
+  pending.hEvent = completed;
   DWORD buffer[16384]{};
   DWORD size = 0;
+  bool first = true;
 
-  while (ReadDirectoryChangesW(handle,
-                               buffer,
-                               sizeof(buffer),
-                               subtree,
-                               changes,
-                               &size,
-                               nullptr,
-                               nullptr)) {
+  while (true) {
+    ResetEvent(completed);
+    const BOOL queued = ReadDirectoryChangesW(handle,
+                                              buffer,
+                                              sizeof(buffer),
+                                              subtree,
+                                              changes,
+                                              nullptr,
+                                              &pending,
+                                              nullptr);
+    // Initialization must not return before Windows has armed the watch.
+    if (first) {
+      ready.set_value();
+      first = false;
+    }
+    if (!queued || !GetOverlappedResult(handle, &pending, &size, TRUE)) {
+      log_line(L"Hot reload: watch failed for {} (error {})",
+               folder.native(),
+               GetLastError());
+      break;
+    }
     if (size == 0 || name.empty() || mentions(buffer, name)) {
       SetEvent(changed);
     }
   }
 
+  CloseHandle(completed);
   CloseHandle(handle);
 }
 
@@ -78,13 +109,25 @@ watch_mods(const fs::path& mods,
            std::function<void()> reload)
 {
   const HANDLE changed = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+  if (!changed) {
+    log_line(L"Hot reload: can't create change event (error {})",
+             GetLastError());
+    return;
+  }
 
-  std::thread(watch_folder, mods, true, std::wstring(), changed).detach();
+  std::promise<void> mods_ready;
+  std::promise<void> config_ready;
+  auto mods_started = mods_ready.get_future();
+  auto config_started = config_ready.get_future();
+  std::thread(
+    watch_folder, mods, true, std::wstring(), changed, std::move(mods_ready))
+    .detach();
   std::thread(watch_folder,
               config.parent_path(),
               false,
               lower(config.filename().native()),
-              changed)
+              changed,
+              std::move(config_ready))
     .detach();
   std::thread([changed, reload = std::move(reload)] {
     while (WaitForSingleObject(changed, INFINITE) == WAIT_OBJECT_0) {
@@ -94,4 +137,6 @@ watch_mods(const fs::path& mods,
       reload();
     }
   }).detach();
+  mods_started.wait();
+  config_started.wait();
 }

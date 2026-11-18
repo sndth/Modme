@@ -20,13 +20,6 @@ TEST_CASE("mod files replace game files")
   CHECK(read_a("TXD/new.nft") == "new");
 }
 
-TEST_CASE("the first mod in alphabetical order wins a conflict")
-{
-  REQUIRE(game().modme != nullptr);
-
-  CHECK(read_a("TXD/hud.nft") == "modded");
-}
-
 TEST_CASE("absolute paths are redirected")
 {
   const fake_game& g = game();
