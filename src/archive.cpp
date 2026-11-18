@@ -1,3 +1,9 @@
+// SPDX-FileCopyrightText: 2026 Jacek Ziółkowski (sndth)
+// SPDX-License-Identifier: MIT
+
+/// @file
+/// @brief Build external DIR tables and sector-aligned IMG layouts.
+
 #include "archive.h"
 #include "log.h"
 
@@ -11,6 +17,8 @@
 
 namespace fs = std::filesystem;
 
+/// @brief An external DIR record; offset and size count 2048-byte sectors.
+/// @note The on-disk name may occupy all 24 bytes without a null terminator.
 struct dir_entry
 {
   uint32_t offset;
@@ -29,6 +37,8 @@ struct entry_file
 static const uint64_t sector = 2048;
 static const uint64_t max_size = 0xFFFFFFFF;
 
+/// @brief Extract an entry basename that fits the archive's ASCII name field.
+/// @return The name, or an empty string for unsupported characters or length.
 static std::string
 ascii_name(const std::wstring& path)
 {
@@ -50,6 +60,7 @@ ascii_name(const std::wstring& path)
   return ascii;
 }
 
+/// @brief Read a bounded DIR name and produce the case-insensitive lookup key.
 static std::wstring
 entry_key(const dir_entry& entry)
 {
@@ -124,6 +135,8 @@ build_archive(std::string dir, const file_overrides& entries)
     return true;
   });
 
+  // Repeated names can refer to the same replacement. Append that source only
+  // once and reuse its sector offset for subsequent directory records.
   const auto place = [&](const entry_file& entry) -> std::optional<uint32_t> {
     if (auto it = moved.find(entry.file); it != moved.end()) {
       return it->second;

@@ -1,3 +1,9 @@
+// SPDX-FileCopyrightText: 2026 Jacek Ziółkowski (sndth)
+// SPDX-License-Identifier: MIT
+
+/// @file
+/// @brief Serialize UTF-8 log writes from game and watcher threads.
+
 #include "log.h"
 
 #include <Windows.h>

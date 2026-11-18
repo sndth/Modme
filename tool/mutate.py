@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Jacek Ziółkowski (sndth)
+# SPDX-License-Identifier: MIT
+
 """Check a small, explicit set of fault mutations in Modme's own code.
 
 This is a regression check, not an exhaustive mutation score. Each mutation must
@@ -35,6 +38,7 @@ MUTATIONS = [
 
 
 def find_msbuild():
+    """Prefer the caller's MSBuild, otherwise use the latest installed Visual Studio."""
     if found := shutil.which("MSBuild.exe"):
         return found
     vswhere = Path(os.environ.get("ProgramFiles(x86)", "C:/Program Files (x86)")) / "Microsoft Visual Studio/Installer/vswhere.exe"
@@ -46,6 +50,11 @@ def find_msbuild():
 
 
 def main():
+    """Check a clean baseline, inject faults one at a time and restore source bytes.
+
+    Build errors and test infrastructure errors never count as killed mutations.
+    The final rebuild removes the last mutation from the executable as well.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--arch", choices=["x86", "x64"], default="x86")
     parser.add_argument("--configuration", default="Release")

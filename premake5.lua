@@ -1,3 +1,6 @@
+-- SPDX-FileCopyrightText: 2026 Jacek Ziółkowski (sndth)
+-- SPDX-License-Identifier: MIT
+
 local minhook = {
   "vendor/minhook/src/*.c",
   "vendor/minhook/src/*.h",

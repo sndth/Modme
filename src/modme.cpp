@@ -1,3 +1,9 @@
+// SPDX-FileCopyrightText: 2026 Jacek Ziółkowski (sndth)
+// SPDX-License-Identifier: MIT
+
+/// @file
+/// @brief Ultimate ASI Loader entry point and process-lifetime initialization.
+
 #include "archive_hooks.h"
 #include "hooks.h"
 #include "log.h"
@@ -27,6 +33,8 @@ load_config(const fs::path& root, const fs::path& config_file)
   return read_config(config_file);
 }
 
+/// @brief Publish a validated scan without reloading ASIs or cached archives.
+/// @note Invalid input and hot_reload: false leave the current snapshot intact.
 static void
 reload(const fs::path& root,
        const fs::path& config_file,
@@ -85,6 +93,9 @@ initialize()
   watch_mods(root, config_file, [=] { reload(root, config_file, plugins); });
 }
 
+/// @brief Initialize Modme once when called by Ultimate ASI Loader.
+/// @note Heavy work is deferred here instead of running under DllMain's loader
+/// lock. Repeated calls do not install hooks or initialize plugins again.
 extern "C" __declspec(dllexport) void
 InitializeASI()
 {
@@ -92,6 +103,7 @@ InitializeASI()
   std::call_once(once, initialize);
 }
 
+/// @brief Record the module handle without doing loader-lock-sensitive work.
 BOOL WINAPI
 DllMain(HINSTANCE self, DWORD reason, LPVOID)
 {

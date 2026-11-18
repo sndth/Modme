@@ -1,3 +1,9 @@
+// SPDX-FileCopyrightText: 2026 Jacek Ziółkowski (sndth)
+// SPDX-License-Identifier: MIT
+
+/// @file
+/// @brief Scan enabled mod directories in conflict-resolution order.
+
 #include "mods.h"
 #include "log.h"
 
@@ -45,6 +51,7 @@ mod_folders(const fs::path& root)
   return names;
 }
 
+/// @brief Order enabled mods so the first insertion wins each file conflict.
 static std::vector<fs::path>
 list_mods(const fs::path& root, const mod_config& config)
 {

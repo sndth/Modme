@@ -1,3 +1,9 @@
+// SPDX-FileCopyrightText: 2026 Jacek Ziółkowski (sndth)
+// SPDX-License-Identifier: MIT
+
+/// @file
+/// @brief Arm directory watches before returning and debounce reload requests.
+
 #include "watch.h"
 #include "log.h"
 #include "mods.h"
@@ -35,6 +41,9 @@ mentions(const DWORD* buffer, const std::wstring& name)
   }
 }
 
+/// @brief Queue one directory watch, signal readiness, then report changes.
+/// @note ready is completed on setup failure as well, so initialization cannot
+/// hang waiting for a watch that could not be started.
 static void
 watch_folder(fs::path folder,
              bool subtree,

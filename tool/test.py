@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Jacek Ziółkowski (sndth)
+# SPDX-License-Identifier: MIT
+
 """Run each doctest in a fresh process: hooks and loaded ASIs are process-wide."""
 
 import argparse
@@ -11,6 +14,7 @@ import xml.etree.ElementTree as ET
 
 
 def process_failure(result):
+    """Keep native Windows status codes visible even when a process prints nothing."""
     return (
         f"exit code {result.returncode} (0x{result.returncode & 0xFFFFFFFF:08X})\n"
         f"stdout:\n{result.stdout or '<empty>'}\n"
@@ -27,6 +31,7 @@ def write_report(suite, report):
 
 
 def cases(executable):
+    """List enabled doctests without initializing the fake game or loading its ASIs."""
     result = subprocess.run(
         [str(executable), "--list-test-cases", "--reporters=xml"],
         cwd=executable.parent,
@@ -46,6 +51,11 @@ def cases(executable):
 
 
 def run(executable, pattern="*", timeout=45, seed=1, report=None):
+    """Run matching cases in fresh processes and return the number of failures.
+
+    Discovery failures return 1 and produce an infrastructure error in the report.
+    Cases run serially because their fixtures share files beside the executable.
+    """
     executable = Path(executable).resolve(strict=True)
     try:
         names = [name for name in cases(executable) if fnmatch.fnmatchcase(name, pattern)]

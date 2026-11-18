@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Jacek Ziółkowski (sndth)
+// SPDX-License-Identifier: MIT
+
 #include "hooks.h"
 
 #include <MinHook.h>

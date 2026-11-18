@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Jacek Ziółkowski (sndth)
+// SPDX-License-Identifier: MIT
+
 #include "archive.h"
 #include "game.h"
 
